@@ -43,6 +43,8 @@ S_CASE tab[NB_LIGNE][NB_COLONNE];
 void Attente(int milli);
 void setTab(int l,int c,int type=VIDE,pthread_t tid=0);
 
+void *fctThVaisseau();
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Attente(int milli)
 {
@@ -60,6 +62,9 @@ void setTab(int l,int c,int type,pthread_t tid)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+pthread_t thVaisseau;
+
+
 int main(int argc,char* argv[])
 {
   EVENT_GRILLE_SDL event;
@@ -96,6 +101,7 @@ int main(int argc,char* argv[])
 
   // Creation des threads
   // TO DO
+  pthread_create(&thVaisseau,NULL,(void*(*)(void*))fctThVaisseau,NULL);
 
   // Exemples d'utilisation du module Ressources --> a supprimer
   DessineChiffre(13,4,7);
@@ -134,3 +140,8 @@ int main(int argc,char* argv[])
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void *fctThVaisseau()
+{
+  return 0;
+}
