@@ -100,10 +100,10 @@ int colonne;
 bool fireOn=true;
 
 int nbAliens = 24;
-int lh = 2;
-int cg = 8;
-int lb = 8;
-int cd = 18;
+int lh = 2;         // Ligne d'alien la plus haute
+int cg = 8;         // Colonne d'alien la plus à gauche
+int lb = 8;         // Ligne d'alien la plus basse
+int cd = 18;        // Colonne d'alien la plus à droite
 
 // Code du main
 
@@ -343,7 +343,7 @@ void *fctThFlotteAliens()
 
     Attente(1000);
 
-    l=2; c=8;
+    /* l=2; c=8;
     for(int i=0;i<4;i++)
     {
         for (int j=0;j<12;j++)
@@ -362,11 +362,99 @@ void *fctThFlotteAliens()
         }
         l+=2;
         c=8;
+    } */
+
+    // ------------------JEUNE BOUCLE MITEUSE------------------------ (a faire : automatisé la boule pour les prochaines descente.....)
+
+    int y=0;
+
+    while(y<5)      // Valeur de test
+    {
+        int x=0;
+
+        while (x<4)     // Aller retour gauche ---> droite
+        {
+            int l=0;
+            int c=8+x;
+
+            for (int i=0;i<6;i++)
+            {
+                l+=2;
+                c=8+x;
+                printf("(%d,%d)\n", l, c);
+                for (int j=0;j<11;j++)
+                {
+                    printf("(%d,%d)\n", l, c);
+                    if (tab[l][c].type == ALIEN)
+                    {
+                        EffaceCarre(l,c);
+                        setTab(l, c, VIDE, 0);
+
+                        DessineAlien(l,c+1);
+                        setTab(l,c+1,ALIEN, pthread_self());
+                    }
+                    c+=2;
+                }
+            }
+            Attente(1000);
+            x++;
+        }
+        x=0;
+        while (x<4)     // Aller retour droite ---> gauche
+        {
+            l=0;
+            c=22-x;
+
+            for (int i=0;i<6;i++)
+            {
+                l+=2;
+                c=22-x;
+                printf("(%d,%d)\n", l, c);
+                for (int j=0;j<11;j++)
+                {
+                    printf("(%d,%d)\n", l, c);
+                    if (tab[l][c].type == ALIEN)
+                    {
+                        EffaceCarre(l,c);
+                        setTab(l, c, VIDE, 0);
+
+                        DessineAlien(l,c-1);
+                        setTab(l,c-1,ALIEN, pthread_self());
+                    }
+                    c-=2;
+                }
+            }
+            Attente(1000);
+            x++;
+        }
+        l=0;
+        c=8;
+        for (int i=0;i<6;i++)
+        {
+            l+=2;
+            c=8;
+            printf("(%d,%d)\n", l, c);
+            for (int j=0;j<11;j++)
+            {
+                printf("(%d,%d)\n", l, c);
+                if (tab[l][c].type == ALIEN)
+                {
+                    EffaceCarre(l,c);
+                    setTab(l, c, VIDE, 0);
+
+                    DessineAlien(l+1,c);
+                    setTab(l+1,c,ALIEN, pthread_self());
+                }
+                c+=2;
+            }
+        }
+        Attente(1000);
+        y++;
     }
 
-    Attente(1000);
-
-    l=2; c=9;
+    // ------------------------------------------
+    
+    /* l=2; c=9;
     for(int i=0;i<4;i++)
     {
         for(int j=0;j<12;j++)
@@ -385,7 +473,7 @@ void *fctThFlotteAliens()
         }
         l+=2;
         c=9;
-    }
+    } */
 
     /* for (int x=0;x<4;x++)
     {
