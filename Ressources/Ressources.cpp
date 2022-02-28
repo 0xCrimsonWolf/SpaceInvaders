@@ -77,7 +77,7 @@ void DessineBouclier(int l,int c,int type)
   switch(type)
   {
     case 1 : DessineSprite(l,c,S_B_OUCLIER1); break;
-    case 2 : DessineSprite(l,c,S_B_OUCLIER2); break;
+    case 6 : DessineSprite(l,c,S_B_OUCLIER2); break;
     default: DessineSprite(l,c,S_B_OUCLIER1); break;    
   }
 }
