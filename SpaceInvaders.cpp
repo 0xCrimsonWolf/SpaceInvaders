@@ -328,123 +328,112 @@ void *fctThInvader()
 
 void *fctThFlotteAliens()
 {
-    /* int x = 0;
-    while (x<4)
+    // Initalisation vaisceaux
+    for(int i=2;i<=8;i+=2)      
     {
-        int i = 2; int j = 8+x;
-        while(i<=8)
+        for(int j=8;j<=18;j+=2)
         {
-            while(j<=18+x)
-            {
-                printf("Coord : (%d,%d)\n",i,j);              
-                EffaceCarre(i,j);
-                setTab(i, j, VIDE, 0);
-                DessineAlien(i,j+1);
-                setTab(i,j+1,ALIEN, pthread_self());
-                j+=2;
-            }
-            i+=2;
-            j=8+x;
-            printf("Ligne entiere\n");
+            EffaceCarre(i,j);
+            setTab(i, j, VIDE, 0);
+            //Attente(500);
+            setTab(i, j, ALIEN, pthread_self());
+            DessineAlien(i, j);
         }
-        printf("Cycle Complet ->\n");
-        x++;
-        Attente(1000);
     }
 
-    printf("On repart a gauche\n");
-    Attente(1000);
-    x = 0;
-    while (x<4)
+    Attente(500);
+
+    // ------------------JEUNE BOUCLE MITEUSE------------------------
+
+    int y=0, c=8,l=0, p=0;
+
+    while(y<7)      // Valeur de test
     {
-        int i = 8; int j = 22-x;
-        while(i>=2)
-        {
-            while(j>=11-x)
-            {
-                printf("Coord : (%d,%d)\n",i,j);              
-                EffaceCarre(i,j);
-                setTab(i, j, VIDE, 0);
-                DessineAlien(i,j-1);
-                setTab(i,j-1,ALIEN, pthread_self());
-                j-=2;
-            }
-            i-=2;
-            j=22-x;
-            printf("Ligne entiere\n");
-        }
-        printf("Cycle Complet <-\n");
-        x++;
-        Attente(1000);
-    } */
+        int x=0;
 
-    
-    int k = 0;
-    while(k < 8) // On revient ici une fois qu'on a fait un allé-retour 
-    {
-        for(int i=2+k;i<=8+k;i+=2)      // Initalisation vaisceaux
+        while (x<4)     // Aller retour gauche ---> droite
         {
-            for(int j=8;j<=18+k;j+=2)
-            {
-                EffaceCarre(i-k,j);
-                setTab(i-k, j, VIDE, 0);
-                //Attente(500);
-                setTab(i, j, ALIEN, pthread_self());
-                DessineAlien(i, j);
-            }
-        }
-        printf("Initialisation\n");
-        Attente(1000);
+            l = 0+p;
+            c=8+x;
 
-        int x = 0;
-        while (x<4)
-        {
-            int i = lh+k; int j = 8+x;
-            while(i<=8+k)
+            for (int i=0;i<6;i++)
             {
-                while(j<=18+x)
+                l+=2;
+                c=8+x;
+                //printf("(%d,%d)\n", l, c);
+                for (int j=0;j<11;j++)
                 {
-                    printf("Coord : (%d,%d)\n",i,j);              
-                    EffaceCarre(i,j);
-                    setTab(i, j, VIDE, 0);
-                    DessineAlien(i,j+1);
-                    setTab(i,j+1,ALIEN, pthread_self());
-                    j+=2;
-                }
-                i+=2;
-                j=8+x;
-                printf("Ligne entiere\n");
-            }
-            printf("Cycle Complet ->\n");
-            x++;
-            Attente(1000);
-        }
+                    //printf("(%d,%d)\n", l, c);
+                    if (tab[l][c].type == ALIEN)
+                    {
+                        EffaceCarre(l,c);
+                        setTab(l, c, VIDE, 0);
 
-        printf("On repart a gauche\n");
-        x = 0;
-        while (x<4)
-        {
-            int i = 8+k; int j = 22-x;
-            while(i>=2)
-            {
-                while(j>=11-x)
-                {
-                    printf("Coord : (%d,%d)\n",i,j);              
-                    EffaceCarre(i,j);
-                    setTab(i, j, VIDE, 0);
-                    DessineAlien(i,j-1);
-                    setTab(i,j-1,ALIEN, pthread_self());
-                    j-=2;
+                        DessineAlien(l,c+1);
+                        setTab(l,c+1,ALIEN, pthread_self());
+                    }
+                    c+=2;
                 }
-                i-=2;
-                j=22-x;
-                printf("Ligne entiere\n");
+                //printf("Ligne entiere\n");
             }
-            printf("Cycle Complet <-\n");
+            //printf("Cycle Complet ->\n");
+            Attente(500);
             x++;
-            Attente(1000);
         }
-        k++;
+        x=0;
+        while (x<4)     // Aller retour droite ---> gauche
+        {
+            l=0+p;
+            c=22-x;
+
+            for (int i=0;i<6;i++)
+            {
+                l+=2;
+                c=22-x;
+                //printf("(%d,%d)\n", l, c);
+                for (int j=0;j<11;j++)
+                {
+                    //printf("(%d,%d)\n", l, c);
+                    if (tab[l][c].type == ALIEN)
+                    {
+                        EffaceCarre(l,c);
+                        setTab(l, c, VIDE, 0);
+
+                        DessineAlien(l,c-1);
+                        setTab(l,c-1,ALIEN, pthread_self());
+                    }
+                    c-=2;
+                }
+                //printf("Ligne entiere\n");
+            }
+            //printf("Cycle Complet <-\n");
+            Attente(500);
+            x++;
+        }
+        l=0+p;
+        c=8;
+        for (int i=0;i<6;i++)       // Descente aux enfers
+        {
+            l+=2;
+            c=8;
+            //printf("(%d,%d)\n", l, c);
+            for (int j=0;j<11;j++)
+            {
+                //printf("(%d,%d)\n", l, c);
+                if (tab[l][c].type == ALIEN)
+                {
+                    EffaceCarre(l,c);
+                    setTab(l, c, VIDE, 0);
+
+                    DessineAlien(l+1,c);
+                    setTab(l+1,c,ALIEN, pthread_self());
+                }
+                c+=2;
+            }
+        }
+        Attente(500);
+        y++;
+        p++;
     }
 
     return 0;
