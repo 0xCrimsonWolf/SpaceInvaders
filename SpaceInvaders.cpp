@@ -104,6 +104,7 @@ int lh = 2;         // Ligne d'alien la plus haute
 int cg = 8;         // Colonne d'alien la plus à gauche
 int lb = 8;         // Ligne d'alien la plus basse
 int cd = 18;        // Colonne d'alien la plus à droite
+int delai;
 
 // Code du main
 
@@ -343,7 +344,7 @@ void *fctThFlotteAliens()
 
     Attente(500);
 
-    // ------------------JEUNE BOUCLE MITEUSE------------------------
+    // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
     int y=0, c=8,l=0, p=0;
 
@@ -371,6 +372,11 @@ void *fctThFlotteAliens()
 
                         DessineAlien(l,c+1);
                         setTab(l,c+1,ALIEN, pthread_self());
+
+                        if (nbAliens==0)
+                        {
+                            pthread_exit(NULL);
+                        }
                     }
                     c+=2;
                 }
@@ -401,6 +407,11 @@ void *fctThFlotteAliens()
 
                         DessineAlien(l,c-1);
                         setTab(l,c-1,ALIEN, pthread_self());
+
+                        if (nbAliens == 0)
+                        {
+                            pthread_exit(NULL);
+                        }
                     }
                     c-=2;
                 }
@@ -427,6 +438,11 @@ void *fctThFlotteAliens()
 
                     DessineAlien(l+1,c);
                     setTab(l+1,c,ALIEN, pthread_self());
+
+                    if (nbAliens == 0)
+                    {
+                        pthread_exit(NULL);
+                    }
                 }
                 c+=2;
             }
