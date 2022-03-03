@@ -281,16 +281,22 @@ void *fctThMissile(S_POSITION *pos)
     {    
         while(pos->L != 0)      // Temps que le missile n'a pas atteint le haut 
         {
+            if (tab[pos->L-1][pos->C].type == ALIEN)        // Si le missile rencontre un alien
+            {
+                EffaceCarre(pos->L, pos->C);        // Efface le missile
+                setTab(pos->L, pos->C, VIDE, 0);
+
+                EffaceCarre(pos->L-1, pos->C);      // Efface l'alien
+                setTab(pos->L-1, pos->C, VIDE, 0);
+
+                pthread_exit(NULL);
+            }
+
             EffaceCarre(pos->L, pos->C);    // Efface l'ancien missile
             setTab(0, pos->C, VIDE, 0);
 
             setTab(pos->L--, pos->C, MISSILE, pthread_self());      // Place le nouveau missile
             DessineMissile(pos->L, pos->C);
-
-            if (tab[pos->L-1][pos->C].type == ALIEN)
-            {
-                // A FAIRE
-            }
 
             Attente(80);        // Attente de 80ms
         }
