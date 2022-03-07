@@ -178,8 +178,6 @@ int main(int argc, char *argv[])
     pthread_create(&thVaisseau, NULL, (void *(*)(void *))fctThVaisseau, NULL);
     pthread_create(&thEvent, NULL, (void *(*)(void *))fctThEvent, NULL);
     pthread_create(&thInvader,NULL,(void*(*)(void *))fctThInvader,NULL);
-    
-
 
     // Exemples d'utilisation du module Ressources --> a supprimer
     /* DessineChiffre(13, 4, 7);
@@ -241,8 +239,10 @@ void *fctThEvent()
         {
             if (tab[event.ligne][event.colonne].type == VIDE)
             {
+                pthread_mutex_lock(&mutexGrille);
                 DessineVaisseau(event.ligne, event.colonne);
                 setTab(event.ligne, event.colonne, VAISSEAU, pthread_self());
+                pthread_mutex_unlock(&mutexGrille);
             }
         }
         if (event.type == CLAVIER)
@@ -279,48 +279,70 @@ void *fctThMissile(S_POSITION *pos)
     
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2)       // Si la case d'init. du missile est vide alors on créé le missile
     {    
-        while(pos->L != 0)      // Temps que le missile n'a pas atteint le haut 
+        while(pos->L != 0)      // Tant que le missile n'a pas atteint le haut 
         {
+            pthread_mutex_lock(&mutexGrille);
             if (tab[pos->L-1][pos->C].type == ALIEN)        // Si le missile rencontre un alien
             {
+                
                 EffaceCarre(pos->L, pos->C);        // Efface le missile
                 setTab(pos->L, pos->C, VIDE, 0);
 
                 EffaceCarre(pos->L-1, pos->C);      // Efface l'alien
                 setTab(pos->L-1, pos->C, VIDE, 0);
 
+                pthread_mutex_unlock(&mutexGrille);
                 pthread_exit(NULL);
             }
 
-            EffaceCarre(pos->L, pos->C);    // Efface l'ancien missile
-            setTab(0, pos->C, VIDE, 0);
+            if (pos->L != 16)
+            {
+                printf("yo la mif\n");
+                EffaceCarre(pos->L, pos->C);    // Efface l'ancien missile
+                setTab(pos->L, pos->C, VIDE, 0);
+            }
 
-            setTab(pos->L--, pos->C, MISSILE, pthread_self());      // Place le nouveau missile
+            pos->L--;
+            setTab(pos->L, pos->C, MISSILE, pthread_self());      // Place le nouveau missile
             DessineMissile(pos->L, pos->C);
 
+            pthread_mutex_unlock(&mutexGrille);
             Attente(80);        // Attente de 80ms
         }
+        
+        pthread_mutex_lock(&mutexGrille);
 
         setTab(pos->L, pos->C, VIDE, 0);
         EffaceCarre(0,pos->C);
+        
+        pthread_mutex_unlock(&mutexGrille);
+        printf("Missile en haut\n");
         pthread_exit(NULL);
     }
     else
     {
+        pthread_mutex_lock(&mutexGrille);
         if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
         {
             EffaceCarre(pos->L, pos->C);
             setTab(pos->L,pos->C, VIDE, 0);
             setTab(pos->L, pos->C, BOUCLIER2, pthread_self());
-            DessineBouclier(pos->L,pos->C, BOUCLIER2); 
+            DessineBouclier(pos->L,pos->C, BOUCLIER2);
+
+            pthread_mutex_unlock(&mutexGrille);
+            printf("Missile bouclier1\n");
             pthread_exit(NULL);
         }
         else if (tab[pos->L][pos->C].type == BOUCLIER2)
         {
                 EffaceCarre(pos->L, pos->C);            // Si la case d'init. du missile est un bouclier rouge alors on efface le bouclier
                 setTab(pos->L, pos->C, VIDE, 0);
+
+                pthread_mutex_unlock(&mutexGrille);
+                printf("Missile bouclier2\n");
                 pthread_exit(NULL); 
         }
+        pthread_mutex_unlock(&mutexGrille);
     }
 
     return 0;
@@ -345,20 +367,25 @@ void *fctThInvader()
 
 void *fctThFlotteAliens()
 {
-    // Initalisation vaisceaux
+    printf("Debut flotte\n");
+    // Initalisation vaissaux
     for(int i=2;i<=8;i+=2)      
     {
         for(int j=8;j<=18;j+=2)
         {
+            pthread_mutex_lock(&mutexGrille);
             EffaceCarre(i,j);
             setTab(i, j, VIDE, 0);
             //Attente(500);
             setTab(i, j, ALIEN, pthread_self());
             DessineAlien(i, j);
+            pthread_mutex_unlock(&mutexGrille);
         }
     }
 
+    
     Attente(500);
+    printf("Debut boucle miteuse\n");
 
     // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
@@ -367,38 +394,56 @@ void *fctThFlotteAliens()
     while(y<7)      // Valeur de test
     {
         int x=0;
-
+        printf("Debut 1\n");
         while (x<4)     // Aller retour gauche ---> droite
         {
             l = 0+p;
             c=8+x;
-
+            printf("Debut 2\n");
             for (int i=0;i<6;i++)
             {
                 l+=2;
                 c=8+x;
+                printf("Debut 3\n");
                 //printf("(%d,%d)\n", l, c);
                 for (int j=0;j<11;j++)
                 {
+                    printf("Debut 4\n");
                     //printf("(%d,%d)\n", l, c);
                     if (tab[l][c].type == ALIEN)
                     {
+                        printf("Debut 5\n");
+                        pthread_mutex_lock(&mutexGrille);
                         if (tab[l][c+1].type == MISSILE)
-                        {
+                        { 
+                            printf("Debut 6\n");
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);      // On tue l'alien
 
+                            printf("Debut 6bis\n");
                             EffaceCarre(l,c+1);
                             setTab(l, c+1, VIDE, 0);      // On tue le missile (tab & affichage)
-                            
-                            nbAliens--;
 
+                            
+                            
+                            printf("Debut 6biis\n");
+                            nbAliens--;
+                            printf("Alien Dead\n");
+                            
+
+                            printf("tab.tid : %d\n",tab[l][c+1].tid);
                             pthread_kill(tab[l][c+1].tid, SIGINT);     // On tue le missile en envoyant SIGINT au threadMissile
+                           
+                            
+                            printf("Debut 6biiis\n");
                         }
                         else
                         {
+                            printf("Debut 7\n");
                             if (nbAliens==0)
                             {
+                                printf("Alien 0\n");
+                                pthread_mutex_unlock(&mutexGrille);
                                 pthread_exit(NULL);
                             }
 
@@ -407,6 +452,10 @@ void *fctThFlotteAliens()
 
                             DessineAlien(l,c+1);
                             setTab(l,c+1,ALIEN, pthread_self());
+
+                            printf("Debut 8\n");
+
+                            pthread_mutex_unlock(&mutexGrille);
                         }
                     }
                     c+=2;
@@ -417,6 +466,9 @@ void *fctThFlotteAliens()
             Attente(500);
             x++;
         }
+
+        printf("Gauche->droite fini\n");
+
         x=0;
         while (x<4)     // Aller retour droite ---> gauche
         {
@@ -433,6 +485,7 @@ void *fctThFlotteAliens()
                     //printf("(%d,%d)\n", l, c);
                     if (tab[l][c].type == ALIEN)
                     {
+                        pthread_mutex_lock(&mutexGrille);
                         if (tab[l][c-1].type == MISSILE)
                         {
                             EffaceCarre(l,c);
@@ -443,12 +496,15 @@ void *fctThFlotteAliens()
 
                             nbAliens--;
 
+                            pthread_mutex_unlock(&mutexGrille);
+
                             pthread_kill(tab[l][c-1].tid, SIGINT);     // On tue le missile en envoyant SIGINT au threadMissile
                         }
                         else
                         {
                             if (nbAliens == 0)
                             {
+                                pthread_mutex_unlock(&mutexGrille);
                                 pthread_exit(NULL);
                             }
 
@@ -457,6 +513,8 @@ void *fctThFlotteAliens()
 
                             DessineAlien(l,c-1);
                             setTab(l,c-1,ALIEN, pthread_self());
+
+                            pthread_mutex_unlock(&mutexGrille);
                         }
                     }
                     c-=2;
@@ -467,6 +525,9 @@ void *fctThFlotteAliens()
             Attente(500);
             x++;
         }
+
+        printf("droite->gauche fini\n");
+
         l=0+p;
         c=8;
         for (int i=0;i<6;i++)       // Descente aux enfers
@@ -476,9 +537,11 @@ void *fctThFlotteAliens()
             //printf("(%d,%d)\n", l, c);
             for (int j=0;j<11;j++)
             {
+               
                 //printf("(%d,%d)\n", l, c);
                 if (tab[l][c].type == ALIEN)
                 {
+                    pthread_mutex_lock(&mutexGrille);
                     if (tab[l+1][c].type == MISSILE)
                     {
                         EffaceCarre(l,c);
@@ -486,6 +549,8 @@ void *fctThFlotteAliens()
 
                         EffaceCarre(l+1,c);
                         setTab(l+1, c, VIDE, 0);      // On tue le missile (tab & affichage)
+
+                        pthread_mutex_unlock(&mutexGrille);
 
                         nbAliens--;
 
@@ -495,6 +560,7 @@ void *fctThFlotteAliens()
                     {
                         if (nbAliens == 0)
                         {
+                            pthread_mutex_unlock(&mutexGrille);
                             pthread_exit(NULL);
                         }
 
@@ -503,12 +569,16 @@ void *fctThFlotteAliens()
 
                         DessineAlien(l+1,c);
                         setTab(l+1,c,ALIEN, pthread_self());
+
+                        pthread_mutex_unlock(&mutexGrille);
                     }
                 }
                 c+=2;
             }
         }
+        
         Attente(500);
+        printf("Descente\n");
         y++;
         p++;
     }
@@ -522,8 +592,8 @@ void HandlerSIGUSR1(int sig)        // Mouvement pour la direction de gauche
 {
     if (colonne>8)      // Vérifie les dépassements
     {
-        EffaceCarre(17, colonne);
         pthread_mutex_lock(&mutexGrille);
+        EffaceCarre(17, colonne);
         colonne--;
         setTab(17,colonne,VAISSEAU,pthread_self());
         DessineVaisseau(17, colonne);
@@ -536,8 +606,8 @@ void HandlerSIGUSR2(int sig)        // Mouvement pour la direction de droite
 {
     if (colonne<22)     // Vérifie les dépassements
     {
-        EffaceCarre(17, colonne);
         pthread_mutex_lock(&mutexGrille);
+        EffaceCarre(17, colonne);
         colonne++;
         setTab(17,colonne,VAISSEAU,pthread_self());
         DessineVaisseau(17, colonne);
@@ -562,5 +632,7 @@ void HandlerSIGHUP(int sig)        // Mouvement pour le tir de missile
 
 void HandlerSIGINT(int sig)
 {
+    printf("S/O le sigint\n");
+    pthread_mutex_unlock(&mutexGrille);
     pthread_exit(NULL);
 }
