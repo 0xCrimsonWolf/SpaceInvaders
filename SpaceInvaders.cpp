@@ -284,6 +284,11 @@ void *fctThMissile(S_POSITION *pos)
 
         while(pos->L != 0)      // Tant que le missile n'a pas atteint le haut 
         {
+            if (nbAliens == 0)
+            {
+                pthread_exit(NULL);
+            }
+
             pthread_mutex_lock(&mutexGrille);
             if (tab[pos->L-1][pos->C].type == ALIEN)        // Si le missile rencontre un alien
             {
@@ -293,6 +298,9 @@ void *fctThMissile(S_POSITION *pos)
 
                 EffaceCarre(pos->L-1, pos->C);      // Efface l'alien
                 setTab(pos->L-1, pos->C, VIDE, 0);
+
+                nbAliens--;
+                printf("NBALIENS: %d\n", nbAliens);
 
                 pthread_mutex_unlock(&mutexGrille);
                 pthread_exit(NULL);
@@ -414,6 +422,7 @@ void *fctThFlotteAliens()
                             setTab(l, c+1, VIDE, 0);      // On tue le missile (tab & affichage)
 
                             nbAliens--;
+                            printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
                             
@@ -476,6 +485,7 @@ void *fctThFlotteAliens()
                             setTab(l, c-1, VIDE, 0);      // On tue le missile (tab & affichage)
 
                             nbAliens--;
+                            printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
 
@@ -536,6 +546,7 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexGrille);
 
                         nbAliens--;
+                        printf("NBALIENS: %d\n", nbAliens);
 
                         pthread_kill(tid, SIGINT); // On tue le missile en envoyant SIGINT au threadMissile
                     }
