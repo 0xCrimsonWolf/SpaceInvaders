@@ -263,20 +263,20 @@ void *fctThEvent()
         {
             if (event.touche == KEY_RIGHT)
             {
-                printf("Flèche droite enfoncée\n");
+                //printf("Flèche droite enfoncée\n");
                 kill(getpid(), SIGUSR2);
             }
             if (event.touche == KEY_LEFT)
             {
-                printf("Flèche gauche enfoncée\n");
+                //printf("Flèche gauche enfoncée\n");
                 kill(getpid(), SIGUSR1);
             }
             if (event.touche == KEY_SPACE)
             {
-                printf("Touche espace enfoncée\n");
+                //printf("Touche espace enfoncée\n");
                 kill(getpid(), SIGHUP);
             }
-            printf("Touche enfoncee : %c\n", event.touche);
+            //printf("Touche enfoncee : %c\n", event.touche);
         }
     }
 
@@ -287,9 +287,9 @@ void *fctThEvent()
 
 void *fctThMissile(S_POSITION *pos)
 {
-    printf("Th %ld > DEBUT MISSILE\n", pthread_self());
+    /* printf("Th %ld > DEBUT MISSILE\n", pthread_self());
     printf("pos L : %d\n",pos->L);
-    printf("pos C : %d\n", pos->C);
+    printf("pos C : %d\n", pos->C); */
     
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2)       // Si la case d'init. du missile est vide alors on créé le missile
     {   
@@ -315,8 +315,9 @@ void *fctThMissile(S_POSITION *pos)
 
                 if (nbAliens == 0)
                 {
-                    printf("Tous les aliens sont morts !\n");
-                    pthread_kill(tidFlotteAliens, SIGPIPE);
+                    printf("TH Missile > Tous les aliens sont morts !\n");
+                    printf("TH Missile > Tid flotte : %ld\n", tidFlotteAliens);
+                    kill(getpid(), SIGPIPE);
                     pthread_exit(NULL);
                 }
 
@@ -380,12 +381,18 @@ void *fctThTimeOut()
 
 void *fctThInvader()
 {
+    printf("TH Invader > Coucou\n");
     pthread_create(&thFlotteAliens,NULL,(void*(*)(void*))fctThFlotteAliens,NULL);
     int ret;
     pthread_join(thFlotteAliens, (void**)&ret);
-    if (ret==0)
+
+    if((void**)&ret == NULL)
+        printf("Alien gagne\n");
+
+
+    if (ret==9)
     {
-        printf("GG !!!\n");
+        printf("!! Thread invader car 0 aliens !! \n");
     }
 
     return 0;
@@ -603,7 +610,7 @@ void *fctThFlotteAliens()
         p++;
     }
 
-    // A faire 
+    pthread_exit(NULL);
 
     return 0;
 }
