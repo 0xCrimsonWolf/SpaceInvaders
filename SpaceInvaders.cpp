@@ -51,6 +51,7 @@ void *fctThMissile(S_POSITION *);
 void *fctThTimeOut();
 void *fctThInvader();
 void *fctThFlotteAliens();
+void *fctThScore();
 
 // Fonction SIGNAUX
 
@@ -58,7 +59,6 @@ void HandlerSIGUSR1(int sig);
 void HandlerSIGUSR2(int sig);
 void HandlerSIGHUP(int sig);
 void HandlerSIGINT(int sig);
-void HandlerSIGPIPE(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Attente(int milli)
@@ -86,11 +86,13 @@ pthread_t thMissile;
 pthread_t thTimeOut;
 pthread_t thInvader;
 pthread_t thFlotteAliens;
+pthread_t thScore;
 
 // Variable Mutex
 
 pthread_mutex_t mutexGrille;
 pthread_mutex_t mutexFlotteAliens;
+pthread_mutex_t mutexScore;
 
 // Variable Conditions
 
@@ -108,11 +110,12 @@ int lb = 8;         // Ligne d'alien la plus basse
 int cd = 18;        // Colonne d'alien la plus à droite
 long tidFlotteAliens;
 
+int delai = 1000;
+
 // Code du main
 
 int main(int argc, char *argv[])
 {
-
     srand((unsigned)time(NULL));
 
     // Ouverture de la fenetre graphique
@@ -155,12 +158,6 @@ int main(int argc, char *argv[])
     D.sa_flags = 0;
     sigemptyset(&D.sa_mask);
     sigaction(SIGINT, &D, NULL);
-
-    struct sigaction E;
-    E.sa_handler = HandlerSIGPIPE;
-    E.sa_flags = 0;
-    sigemptyset(&E.sa_mask);
-    sigaction(SIGPIPE, &E, NULL);
 
     // Initialisation de tab
     for (int l = 0; l < NB_LIGNE; l++)
@@ -312,15 +309,7 @@ void *fctThMissile(S_POSITION *pos)
                 printf("NBALIENS: %d\n", nbAliens);
 
                 pthread_mutex_unlock(&mutexGrille);
-
-                if (nbAliens == 0)
-                {
-                    printf("TH Missile > Tous les aliens sont morts !\n");
-                    printf("TH Missile > Tid flotte : %ld\n", tidFlotteAliens);
-                    kill(getpid(), SIGPIPE);
-                    pthread_exit(NULL);
-                }
-
+                
                 pthread_exit(NULL);
             }
 
@@ -373,7 +362,7 @@ void *fctThMissile(S_POSITION *pos)
 
 void *fctThTimeOut()
 {
-    Attente(600);
+    Attente(200);   // Vraie valeur de base : 600
     fireOn=true;
     pthread_exit(NULL);
     return 0;
@@ -382,17 +371,52 @@ void *fctThTimeOut()
 void *fctThInvader()
 {
     printf("TH Invader > Coucou\n");
-    pthread_create(&thFlotteAliens,NULL,(void*(*)(void*))fctThFlotteAliens,NULL);
-    int ret;
-    pthread_join(thFlotteAliens, (void**)&ret);
 
-    if((void**)&ret == NULL)
-        printf("Alien gagne\n");
+    int * ret;
 
-
-    if (ret==9)
+    while(1)
     {
-        printf("!! Thread invader car 0 aliens !! \n");
+        pthread_create(&thFlotteAliens,NULL,(void*(*)(void*))fctThFlotteAliens,NULL);
+        pthread_join(thFlotteAliens, (void**)&ret);
+        if(*ret == 0)
+        {
+            delai=delai*0.7;
+            printf("delai : %d\n", delai);
+        }
+        else
+        {
+            printf("Alien win\n");
+            printf("delai : %d\n", delai);
+
+            for(int i=0;i<NB_LIGNE;i++)
+            {
+                for(int j=8;j<NB_COLONNE;j++)
+                {
+                    if (tab[i][j].type == ALIEN)
+                    {
+                        setTab(i, j, VIDE, 0);
+                        EffaceCarre(i, j);
+                    }
+                }
+            }
+        }
+
+        nbAliens = 24;
+
+        setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 11, 1);
+        setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 12, 1);
+        setTab(NB_LIGNE - 2, 13, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 13, 1);
+        setTab(NB_LIGNE - 2, 17, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 17, 1);
+        setTab(NB_LIGNE - 2, 18, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 18, 1);
+        setTab(NB_LIGNE - 2, 19, BOUCLIER1, 0);
+        DessineBouclier(NB_LIGNE - 2, 19, 1);        
+
+        Attente(1000);
     }
 
     return 0;
@@ -417,7 +441,7 @@ void *fctThFlotteAliens()
         }
     }
 
-    Attente(500);
+    Attente(delai);
     printf("Debut boucle miteuse\n");
 
     // ------------------ JEUNE BOUCLE MITEUSE ------------------------
@@ -461,13 +485,6 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
-                            if (nbAliens==0)
-                            {
-                                printf("Tous les aliens sont morts !\n");
-                                pthread_mutex_unlock(&mutexGrille);
-                                pthread_exit(&nbAliens);
-                            }
-
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
 
@@ -477,12 +494,18 @@ void *fctThFlotteAliens()
                             pthread_mutex_unlock(&mutexGrille);
                         }
                     }
+                    if (nbAliens==0)
+                    {
+                        printf("Tous les aliens sont morts !\n");
+                        pthread_mutex_unlock(&mutexGrille);
+                        pthread_exit(&nbAliens);
+                    }  
                     c+=2;
                 }
                 //printf("Ligne entiere\n");
             }
             //printf("Cycle Complet ->\n");
-            Attente(500);
+            Attente(delai);
             x++;
         }
 
@@ -524,13 +547,6 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
-                            if (nbAliens == 0)
-                            {
-                                printf("Tous les aliens sont morts !\n");
-                                pthread_mutex_unlock(&mutexGrille);
-                                pthread_exit(&nbAliens);
-                            }
-
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
 
@@ -539,13 +555,20 @@ void *fctThFlotteAliens()
 
                             pthread_mutex_unlock(&mutexGrille);
                         }
+                        
+                    }
+                    if (nbAliens == 0)
+                    {
+                        printf("Tous les aliens sont morts !\n");
+                        pthread_mutex_unlock(&mutexGrille);
+                        pthread_exit(&nbAliens);
                     }
                     c-=2;
                 }
                 //printf("Ligne entiere\n");
             }
             //printf("Cycle Complet <-\n");
-            Attente(500);
+            Attente(delai);
             x++;
         }
 
@@ -584,13 +607,6 @@ void *fctThFlotteAliens()
                     }
                     else
                     {
-                        if (nbAliens == 0)
-                        {
-                            printf("Tous les aliens sont morts !\n");
-                            pthread_mutex_unlock(&mutexGrille);
-                            pthread_exit(&nbAliens);
-                        }
-
                         EffaceCarre(l,c);
                         setTab(l, c, VIDE, 0);
 
@@ -599,18 +615,25 @@ void *fctThFlotteAliens()
 
                         pthread_mutex_unlock(&mutexGrille);
                     }
+                    
+                }
+                if (nbAliens == 0)
+                {
+                    printf("Tous les aliens sont morts !\n");
+                    pthread_mutex_unlock(&mutexGrille);
+                    pthread_exit(&nbAliens);
                 }
                 c+=2;
             }
         }
         
-        Attente(500);
+        Attente(delai);
         printf("Descente\n");
         y++;
         p++;
     }
 
-    pthread_exit(NULL);
+    pthread_exit(&nbAliens);
 
     return 0;
 }
@@ -663,10 +686,4 @@ void HandlerSIGINT(int sig)
 {
     printf("S/O le SIGINT\n");
     pthread_exit(NULL);
-}
-
-void HandlerSIGPIPE(int sig)
-{
-    printf("S/O le SIGPIPE\n");
-    pthread_exit(&nbAliens);
 }
