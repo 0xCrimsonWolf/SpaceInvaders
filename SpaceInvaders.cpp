@@ -52,6 +52,7 @@ void *fctThTimeOut();
 void *fctThInvader();
 void *fctThFlotteAliens();
 void *fctThScore();
+void *fctThBombe(S_POSITION *);
 
 // Fonction SIGNAUX
 
@@ -87,6 +88,7 @@ pthread_t thTimeOut;
 pthread_t thInvader;
 pthread_t thFlotteAliens;
 pthread_t thScore;
+pthread_t thBombe;
 
 // Variable Mutex
 
@@ -168,11 +170,13 @@ int main(int argc, char *argv[])
     sigaction(SIGINT, &D, NULL);
 
     // Initialisation de tab
+
     for (int l = 0; l < NB_LIGNE; l++)
         for (int c = 0; c < NB_COLONNE; c++)
             setTab(l, c);
 
     // Initialisation des boucliers
+
     setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
     DessineBouclier(NB_LIGNE - 2, 11, 1);
     setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
@@ -267,20 +271,16 @@ void *fctThEvent()
         {
             if (event.touche == KEY_RIGHT)
             {
-                //printf("Flèche droite enfoncée\n");
                 kill(getpid(), SIGUSR2);
             }
             if (event.touche == KEY_LEFT)
             {
-                //printf("Flèche gauche enfoncée\n");
                 kill(getpid(), SIGUSR1);
             }
             if (event.touche == KEY_SPACE)
             {
-                //printf("Touche espace enfoncée\n");
                 kill(getpid(), SIGHUP);
             }
-            //printf("Touche enfoncee : %c\n", event.touche);
         }
     }
 
@@ -418,6 +418,8 @@ void *fctThInvader()
 
         nbAliens = 24;
 
+        // Ré-initialisation des boucliers à la base 
+
         setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 11, 1);
         setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
@@ -441,7 +443,9 @@ void *fctThFlotteAliens()
 {
     tidFlotteAliens=pthread_self();
     printf("Debut flotte\n");
-    // Initalisation vaissaux
+
+    // Initalisation des aliens
+
     for(int i=2;i<=8;i+=2)
     {
         for(int j=8;j<=18;j+=2)
@@ -449,7 +453,6 @@ void *fctThFlotteAliens()
             pthread_mutex_lock(&mutexGrille);
             EffaceCarre(i,j);
             setTab(i, j, VIDE, 0);
-            //Attente(500);
             setTab(i, j, ALIEN, pthread_self());
             DessineAlien(i, j);
             pthread_mutex_unlock(&mutexGrille);
@@ -461,13 +464,23 @@ void *fctThFlotteAliens()
 
     // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
-    int y=0, c=8,l=0, p=0;
+    int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens;
 
-    while(y<7)      // Valeur de test
+    while(y<7)      // Valeur de test   Peut-être à opti. retirer la boucle 7 et à la fin des trois boucles faire un if qui regarde si on est sur la ligne des boucliers
     {
         int x=0;
         while (x<4)     // Aller retour gauche ---> droite
         {
+
+            // Un déplacement sur deux un alien random lache une bombe 
+
+            if (x==1 || x==3)
+            {
+                rdm=(rand() % (nbAliens+1));
+                printf("Nombre aléatoire : %d\n", rdm);
+                cur_aliens=0;
+            }
+
             l = 0+p;
             c=8+x;
             for (int i=0;i<6;i++)
@@ -480,6 +493,21 @@ void *fctThFlotteAliens()
                     //printf("(%d,%d)\n", l, c);
                     if (tab[l][c].type == ALIEN)
                     {
+                        printf("Nombre rdm : %d\n", rdm);
+                        printf("CurAliens : %d\n", cur_aliens);
+                        if (cur_aliens==rdm)
+                        {
+                            // Lancement du threadBombe
+                            printf("Pos de l'alien : %d;%d\n", l, c);
+                            printf("Pos de la bombe : %d;%d\n", l+1, c);
+
+                            S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
+                            posBombe->L=l+1;
+                            posBombe->C=c;
+                            pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
+                        }
+                        cur_aliens++;
+
                         pthread_mutex_lock(&mutexGrille);
                         if (tab[l][c+1].type == MISSILE)
                         {
@@ -703,6 +731,17 @@ void *fctThScore()
     }
 
     pthread_exit(&nbAliens);
+
+    return 0;
+}
+
+void *fctThBombe(S_POSITION * pos)
+{
+    printf("BOOOOOOOOOOM\n");
+
+    // A voir 3eme paragraphe de l'étape 6 ...
+
+    pthread_exit(NULL);
 
     return 0;
 }
