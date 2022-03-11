@@ -96,6 +96,8 @@ pthread_mutex_t mutexScore;
 
 // Variable Conditions
 
+pthread_cond_t condScore;
+
 // Variable Spécifiques
 
 // Variable Globales
@@ -109,6 +111,8 @@ int cg = 8;         // Colonne d'alien la plus à gauche
 int lb = 8;         // Ligne d'alien la plus basse
 int cd = 18;        // Colonne d'alien la plus à droite
 long tidFlotteAliens;
+int score=0;
+bool MAJScore;
 
 int delai = 1000;
 
@@ -132,6 +136,10 @@ int main(int argc, char *argv[])
     // Initialisation des mutex et variables de condition
     
     pthread_mutex_init(&mutexGrille, NULL);
+    pthread_mutex_init(&mutexFlotteAliens, NULL);
+    pthread_mutex_init(&mutexScore, NULL);
+
+    pthread_cond_init(&condScore, NULL);
 
     // Armement des signaux
     
@@ -306,6 +314,14 @@ void *fctThMissile(S_POSITION *pos)
                 setTab(pos->L-1, pos->C, VIDE, 0);
 
                 nbAliens--;
+
+                // Incrémentation du score + signal
+
+                pthread_mutex_lock(&mutexScore);
+                score++;
+                pthread_mutex_unlock(&mutexScore);
+                pthread_cond_signal(&condScore);
+
                 printf("NBALIENS: %d\n", nbAliens);
 
                 pthread_mutex_unlock(&mutexGrille);
@@ -477,6 +493,14 @@ void *fctThFlotteAliens()
 
                             // Mutex à faire !!!
                             nbAliens--;
+
+                            // Incrémentation du score + signal
+
+                            pthread_mutex_lock(&mutexScore);
+                            score++;
+                            pthread_mutex_unlock(&mutexScore);
+                            pthread_cond_signal(&condScore);
+
                             printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
@@ -539,6 +563,14 @@ void *fctThFlotteAliens()
                             setTab(l, c-1, VIDE, 0);      // On tue le missile (tab & affichage)
 
                             nbAliens--;
+
+                            // Incrémentation du score + signal
+
+                            pthread_mutex_lock(&mutexScore);
+                            score++;
+                            pthread_mutex_unlock(&mutexScore);
+                            pthread_cond_signal(&condScore);
+
                             printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
@@ -601,6 +633,14 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexGrille);
 
                         nbAliens--;
+
+                        // Incrémentation du score + signal
+
+                        pthread_mutex_lock(&mutexScore);
+                        score++;
+                        pthread_mutex_unlock(&mutexScore);
+                        pthread_cond_signal(&condScore);
+
                         printf("NBALIENS: %d\n", nbAliens);
 
                         pthread_kill(tid, SIGINT); // On tue le missile en envoyant SIGINT au threadMissile
@@ -632,6 +672,21 @@ void *fctThFlotteAliens()
         y++;
         p++;
     }
+
+    pthread_exit(&nbAliens);
+
+    return 0;
+}
+
+void *fctThScore()
+{
+    pthread_mutex_lock(&mutexScore);
+    while (!MAJScore)
+    {
+        printf("Le score est de : %d", score);
+        pthread_cond_wait(&condScore, &mutexScore);
+    }
+    pthread_mutex_unlock(&mutexScore);
 
     pthread_exit(&nbAliens);
 
@@ -684,6 +739,5 @@ void HandlerSIGHUP(int sig)        // Mouvement pour le tir de missile
 
 void HandlerSIGINT(int sig)
 {
-    printf("S/O le SIGINT\n");
     pthread_exit(NULL);
 }
