@@ -112,7 +112,7 @@ int lb = 8;         // Ligne d'alien la plus basse
 int cd = 18;        // Colonne d'alien la plus à droite
 long tidFlotteAliens;
 int score=0;
-bool MAJScore;
+bool MAJScore=false;
 
 int delai = 1000;
 
@@ -191,6 +191,7 @@ int main(int argc, char *argv[])
     pthread_create(&thVaisseau, NULL, (void *(*)(void *))fctThVaisseau, NULL);
     pthread_create(&thEvent, NULL, (void *(*)(void *))fctThEvent, NULL);
     pthread_create(&thInvader,NULL,(void*(*)(void *))fctThInvader,NULL);
+    pthread_create(&thScore,NULL,(void*(*)(void *))fctThScore,NULL);
 
     // Exemples d'utilisation du module Ressources --> a supprimer
     /* DessineChiffre(13, 4, 7);
@@ -205,15 +206,13 @@ int main(int argc, char *argv[])
     FermetureFenetreGraphique();
     printf("OK\n"); */
 
-//    pthread_join(thVaisseau,NULL);
     pthread_join(thEvent, NULL);
-//    pthread_join(thMissile,NULL);
 
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Fonction Thread
+// Fonctions des Threads
 
 void *fctThVaisseau()
 {
@@ -493,6 +492,7 @@ void *fctThFlotteAliens()
 
                             // Mutex à faire !!!
                             nbAliens--;
+                            printf("NBALIENS: %d\n", nbAliens);
 
                             // Incrémentation du score + signal
 
@@ -500,8 +500,6 @@ void *fctThFlotteAliens()
                             score++;
                             pthread_mutex_unlock(&mutexScore);
                             pthread_cond_signal(&condScore);
-
-                            printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
                             
@@ -563,6 +561,7 @@ void *fctThFlotteAliens()
                             setTab(l, c-1, VIDE, 0);      // On tue le missile (tab & affichage)
 
                             nbAliens--;
+                            printf("NBALIENS: %d\n", nbAliens);
 
                             // Incrémentation du score + signal
 
@@ -570,8 +569,6 @@ void *fctThFlotteAliens()
                             score++;
                             pthread_mutex_unlock(&mutexScore);
                             pthread_cond_signal(&condScore);
-
-                            printf("NBALIENS: %d\n", nbAliens);
 
                             pthread_mutex_unlock(&mutexGrille);
 
@@ -633,6 +630,7 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexGrille);
 
                         nbAliens--;
+                        printf("NBALIENS: %d\n", nbAliens);
 
                         // Incrémentation du score + signal
 
@@ -640,8 +638,6 @@ void *fctThFlotteAliens()
                         score++;
                         pthread_mutex_unlock(&mutexScore);
                         pthread_cond_signal(&condScore);
-
-                        printf("NBALIENS: %d\n", nbAliens);
 
                         pthread_kill(tid, SIGINT); // On tue le missile en envoyant SIGINT au threadMissile
                     }
@@ -680,13 +676,31 @@ void *fctThFlotteAliens()
 
 void *fctThScore()
 {
-    pthread_mutex_lock(&mutexScore);
-    while (!MAJScore)
+    while (1)
     {
-        printf("Le score est de : %d", score);
-        pthread_cond_wait(&condScore, &mutexScore);
+        // Paradigme d'attente
+
+        pthread_mutex_lock(&mutexScore);
+        while (!MAJScore)
+        {
+            pthread_cond_wait(&condScore, &mutexScore);
+            printf("Le score est de : %d", score);
+
+            // Calcul avec modulo pour afficher un par un
+
+            int cur_score=score;
+            int i=5;
+            while (cur_score!=0 || i>1)
+            {
+                int mod_score=cur_score%10;
+                cur_score=(cur_score-mod_score)/10;
+                DessineChiffre(10, i, mod_score);
+                i--;
+            }
+            MAJScore=false;
+        }
+        pthread_mutex_unlock(&mutexScore);
     }
-    pthread_mutex_unlock(&mutexScore);
 
     pthread_exit(&nbAliens);
 
