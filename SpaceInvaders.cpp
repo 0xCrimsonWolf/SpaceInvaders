@@ -739,7 +739,22 @@ void *fctThBombe(S_POSITION * pos)
 {
     printf("BOOOOOOOOOOM\n");
 
+    printf("pos -> L : %d\n",pos->L);
+    printf("NB-1 : %d\n",NB_LIGNE-1);
     // A voir 3eme paragraphe de l'étape 6 ...
+
+    // j'ai r fait a par le missile qui descends
+
+    while(pos->L < NB_LIGNE-1)
+    {
+        setTab(pos->L,pos->C,BOMBE,pthread_self());
+        DessineBombe(pos->L,pos->C);
+        pos->L++;
+        Attente(160);
+        setTab(pos->L-1,pos->C,VIDE,0);
+        EffaceCarre(pos->L-1,pos->C);
+    }
+    
 
     pthread_exit(NULL);
 
