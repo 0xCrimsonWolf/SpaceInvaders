@@ -326,7 +326,6 @@ void *fctThMissile(S_POSITION *pos)
 
                 EffaceCarre(pos->L-1, pos->C);      // Efface l'alien
                 setTab(pos->L-1, pos->C, VIDE, 0);
-                pthread_mutex_unlock(&mutexGrille);
 
                 pthread_mutex_lock(&mutexAliens);
                 nbAliens--;
@@ -340,6 +339,8 @@ void *fctThMissile(S_POSITION *pos)
                 pthread_cond_signal(&condScore);
 
                 printf("NBALIENS: %d\n", nbAliens);
+
+                pthread_mutex_unlock(&mutexGrille);
                 
                 pthread_exit(NULL);
             }
@@ -380,9 +381,9 @@ void *fctThMissile(S_POSITION *pos)
     }
     else
     {
+        pthread_mutex_lock(&mutexGrille);
         if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
         {
-            pthread_mutex_lock(&mutexGrille);
             EffaceCarre(pos->L, pos->C);
             setTab(pos->L,pos->C, VIDE, 0);
             setTab(pos->L, pos->C, BOUCLIER2, pthread_self());
@@ -393,7 +394,6 @@ void *fctThMissile(S_POSITION *pos)
         }
         else if (tab[pos->L][pos->C].type == BOUCLIER2)
         {
-            pthread_mutex_lock(&mutexGrille);
             EffaceCarre(pos->L, pos->C);            // Si la case d'init. du missile est un bouclier rouge alors on efface le bouclier
             setTab(pos->L, pos->C, VIDE, 0);
 
@@ -402,14 +402,14 @@ void *fctThMissile(S_POSITION *pos)
         }
         else if(tab[pos->L][pos->C].type == BOMBE)
         {
-            pthread_mutex_lock(&mutexGrille);
             EffaceCarre(pos->L, pos->C);
             //pthread_kill(tab[pos->L][pos->C].tid, SIGINT);
             setTab(pos->L,pos->C, VIDE, 0);
 
             pthread_mutex_unlock(&mutexGrille);
-            pthread_exit(NULL);
+            pthread_exit(NULL); 
         }
+        pthread_mutex_unlock(&mutexGrille);
     }
 
     pthread_exit(NULL);
@@ -450,10 +450,8 @@ void *fctThInvader()
                 {
                     if (tab[i][j].type == ALIEN)
                     {
-                        pthread_mutex_lock(&mutexGrille);
                         setTab(i, j, VIDE, 0);
                         EffaceCarre(i, j);
-                        pthread_mutex_unlock(&mutexGrille);
                     }
                 }
             }
@@ -465,7 +463,6 @@ void *fctThInvader()
 
         // Ré-initialisation des boucliers à la base 
 
-        pthread_mutex_unlock(&mutexGrille);
         setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 11, 1);
         setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
@@ -477,8 +474,7 @@ void *fctThInvader()
         setTab(NB_LIGNE - 2, 18, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 18, 1);
         setTab(NB_LIGNE - 2, 19, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 19, 1);
-        pthread_mutex_unlock(&mutexGrille);      
+        DessineBouclier(NB_LIGNE - 2, 19, 1);        
 
         Attente(1000);
     }
@@ -509,11 +505,11 @@ void *fctThFlotteAliens()
     Attente(delai);
     //printf("Debut boucle miteuse\n");
 
-    // -------------------------- JEUNE BOUCLE MITEUSE --------------------------------
+    // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
     int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens, oneshot=0;
 
-    while(y<7)
+    while(y<7)      // Valeur de test   Peut-être à opti. retirer la boucle 7 et à la fin des trois boucles faire un if qui regarde si on est sur la ligne des boucliers
     {
         int x=0;
         while (x<4)     // Aller retour gauche ---> droite
@@ -553,35 +549,38 @@ void *fctThFlotteAliens()
 
                             S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
                             posBombe->L=l+1;
-                            posBombe->C=c;
+                            posBombe->C=c+1;
                             pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
                         }
                         cur_aliens++;
 
+                        pthread_mutex_lock(&mutexGrille);
+
                         if (tab[l][c+1].type == BOMBE)
                         {
-                            pthread_mutex_lock(&mutexGrille);
+                            printf("GD -> Bombe\n");
+                            
                             EffaceCarre(l,c+1);
                             pthread_kill(tab[l][c+1].tid, SIGINT);
                             setTab(l,c+1, VIDE, 0);
-                            pthread_mutex_unlock(&mutexGrille);
                             
                             S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
-                            posBombe->L=l+1;
-                            posBombe->C=c;
+                            posBombe->L=l;
+                            posBombe->C=c+1;
                             pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
-                        }
+                            
+                        }                   
+                        
                         if (tab[l][c+1].type == MISSILE)
                         {
-                            pthread_mutex_lock(&mutexGrille);
+                            printf("GD -> Missile\n");
+                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);      // On tue l'alien
                             EffaceCarre(l,c+1);
                             long tid;                   // On stock le tid pour pouvoir kill le thread avant de l'effacer
                             tid=tab[l][c+1].tid;
                             setTab(l, c+1, VIDE, 0);      // On tue le missile (tab & affichage)
-
-                            pthread_mutex_unlock(&mutexGrille);
 
                             pthread_mutex_lock(&mutexAliens);
                             nbAliens--;
@@ -600,15 +599,16 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
-                            pthread_mutex_lock(&mutexGrille);
+                            printf("GD -> Else\n");
+                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
 
                             DessineAlien(l,c+1);
                             setTab(l,c+1,ALIEN, pthread_self());
-
-                            pthread_mutex_unlock(&mutexGrille);
+                    
                         }
+                        pthread_mutex_unlock(&mutexGrille);
                     }
                     if (nbAliens==0)
                     {
@@ -617,7 +617,9 @@ void *fctThFlotteAliens()
                     }  
                     c+=2;
                 }
+                //printf("Ligne entiere\n");
             }
+            //printf("Cycle Complet ->\n");
             Attente(delai);
             x++;
         }
@@ -629,21 +631,11 @@ void *fctThFlotteAliens()
         {
             // Un déplacement sur deux un alien random lache une bombe 
 
-            if((oneshot % 2) == 1)      // nbr impair
+            if (x==1 || x==3)
             {
-                if (x==0 || x==2)
-                {
-                    rdm=(rand() % (nbAliens+1));
-                    cur_aliens=0;
-                }
-            }
-            else if ((oneshot % 2) == 0)        // nbr pair
-            {
-                if (x==1 || x==3)
-                {
-                    rdm=(rand() % (nbAliens+1));
-                    cur_aliens=0;
-                }
+                rdm=(rand() % (nbAliens+1));
+                //printf("Nombre aléatoire : %d\n", rdm);
+                cur_aliens=0;
             }
 
             l=0+p;
@@ -657,32 +649,36 @@ void *fctThFlotteAliens()
                 {
                     if (tab[l][c].type == ALIEN)
                     {
-                        if (cur_aliens==rdm)        // Si l'alien est tombé sur le nbr rdm alors il créé la bombe
+                        if (cur_aliens==rdm)
                         {
                             // Lancement du threadBombe
+                            /* printf("Pos de l'alien : %d;%d\n", l, c);
+                            printf("Pos de la bombe : %d;%d\n", l+1, c); */
 
                             S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
                             posBombe->L=l+1;
-                            posBombe->C=c;
+                            posBombe->C=c-1;
                             pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
                         }
                         cur_aliens++;
 
                         if (tab[l][c-1].type == BOMBE)
                         {
+                            printf("DG -> Bombe\n");
                             pthread_mutex_lock(&mutexGrille);
                             EffaceCarre(l,c-1);
                             pthread_kill(tab[l][c-1].tid, SIGINT);
                             setTab(l,c-1, VIDE, 0);
-                            pthread_mutex_unlock(&mutexGrille);
                             
                             S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
-                            posBombe->L=l+1;
-                            posBombe->C=c;
+                            posBombe->L=l;
+                            posBombe->C=c-1;
                             pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
+                            pthread_mutex_unlock(&mutexGrille);
                         }
                         if (tab[l][c-1].type == MISSILE)
                         {
+                            printf("DG -> Missile\n");
                             pthread_mutex_lock(&mutexGrille);
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);      // On tue l'alien
@@ -710,6 +706,7 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
+                            printf("DG -> ELSE\n");
                             pthread_mutex_lock(&mutexGrille);
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
@@ -727,7 +724,9 @@ void *fctThFlotteAliens()
                     }
                     c-=2;
                 }
+                //printf("Ligne entiere\n");
             }
+            //printf("Cycle Complet <-\n");
             Attente(delai);
             x++;
         }
@@ -739,33 +738,20 @@ void *fctThFlotteAliens()
 
         for (int i=0;i<6;i++)       // Descente aux enfers
         {
-            if (oneshot==1 && i==0)
-            {
-                rdm=(rand() % (nbAliens+1));
-                cur_aliens=0;
-            }
-
             l+=2;
             c=8;
+            //printf("(%d,%d)\n", l, c);
             for (int j=0;j<11;j++)
             {
+                //printf("(%d,%d)\n", l, c);
                 if (tab[l][c].type == ALIEN)
                 {         
-                    if (cur_aliens==rdm)        // Si l'alien est tombé sur le nbr rdm alors il créé la bombe
-                    {
-                        // Lancement du threadBombe
-
-                        S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
-                        posBombe->L=l+1;
-                        posBombe->C=c;
-                        pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
-                    }
-                    cur_aliens++;
                     if (tab[l+1][c].type == MISSILE)
                     {
+                        printf("Desc -> MISSILE\n");
                         pthread_mutex_lock(&mutexGrille);
                         EffaceCarre(l,c);
-                        setTab(l, c, VIDE, 0);      // On tue l'alien
+                        setTab(l, c, VIDE, 0); // On tue l'alien
 
                         EffaceCarre(l+1,c);
                         long tid;                       // On stock le tid pour pouvoir kill le thread avant de l'effacer
@@ -786,10 +772,11 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexScore);
                         pthread_cond_signal(&condScore);
 
-                        pthread_kill(tid, SIGINT);      // On tue le missile en envoyant SIGINT au threadMissile
+                        pthread_kill(tid, SIGINT); // On tue le missile en envoyant SIGINT au threadMissile
                     }
                     else
                     {
+                        printf("Desc -> ELSE\n");
                         pthread_mutex_lock(&mutexGrille);
                         EffaceCarre(l,c);
                         setTab(l, c, VIDE, 0);
@@ -817,20 +804,16 @@ void *fctThFlotteAliens()
         p++;
     }
 
-    // Si la boucle se termine alors la flotte a gagné donc :
-
-    for (int i=8;i<22;i++)
-    {
-        if (tab[17][i].type == VAISSEAU)
+        for (int i=8;i<22;i++)
         {
-            pthread_mutex_lock(&mutexGrille);
-            EffaceCarre(17,i);
-            setTab(17, i, VIDE, 0);
-            pthread_kill(tab[17][i].tid, SIGQUIT);
-            pthread_mutex_unlock(&mutexGrille);
-            pthread_exit(&nbAliens);
+            if (tab[17][i].type == VAISSEAU)
+            {
+                EffaceCarre(17,i);
+                setTab(17, i, VIDE, 0);
+                pthread_kill(tab[17][i].tid, SIGQUIT);
+                pthread_exit(&nbAliens);
+            }
         }
-    }
 
     return 0;
 }
@@ -870,18 +853,23 @@ void *fctThScore()
 
 void *fctThBombe(S_POSITION * pos)
 {
+    
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE && tab[pos->L][pos->C].type != MISSILE && tab[pos->L][pos->C].type != VAISSEAU)
     {
+        pthread_mutex_lock(&mutexGrille);
         setTab(pos->L,pos->C,BOMBE, pthread_self());
         DessineBombe(pos->L,pos->C);
+        pthread_mutex_unlock(&mutexGrille);
+        //Attente(1000);
         printf("Init de la bombe\n");
 
         while (pos->L < NB_LIGNE-1)
         {
+            pthread_mutex_lock(&mutexGrille);
             switch(tab[pos->L+1][pos->C].type)      // Prochaine position de la bombe
             {
                 case BOUCLIER2:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     printf("CASE BOUCLIER2\n");
                     EffaceCarre(pos->L+1, pos->C);            // Si la prochaine case est un bouclier rouge alors on efface le bouclier
                     setTab(pos->L+1, pos->C, VIDE, 0);
@@ -893,7 +881,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL); 
                     break;
                 case BOUCLIER1:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     printf("CASE BOUCLIER1\n");
                     EffaceCarre(pos->L+1, pos->C);            // Si la prochaine case est un bouclier vert alors on passe le bouclier en rouge (bouclier2)
                     setTab(pos->L+1,pos->C, VIDE, 0);
@@ -908,7 +896,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case BOMBE:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     printf("CASE BOMBE\n");
                     EffaceCarre(pos->L+1, pos->C);
                     setTab(pos->L+1, pos->C, VIDE, 0);
@@ -917,7 +905,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case MISSILE:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     printf("CASE MISSILE\n");
                     EffaceCarre(pos->L+1, pos->C);      // Efface le missile
 
@@ -931,7 +919,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case VAISSEAU:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     printf("CASE VAISSEAU\n");
                     EffaceCarre(pos->L+1, pos->C);
                     
@@ -946,7 +934,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case VIDE:
-                    pthread_mutex_lock(&mutexGrille);
+                    
                     EffaceCarre(pos->L,pos->C);
                     setTab(pos->L,pos->C,VIDE, 0);      // Efface l'ancienne bombe 
             
@@ -957,8 +945,10 @@ void *fctThBombe(S_POSITION * pos)
                     
                     pthread_mutex_unlock(&mutexGrille);
                     break;
+                case ALIEN:
+                    break;
             }
-        
+            pthread_mutex_unlock(&mutexGrille);
             Attente(160);
         }
 
