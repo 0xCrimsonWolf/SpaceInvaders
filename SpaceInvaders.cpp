@@ -315,22 +315,25 @@ void *fctThEvent()
 
 void *fctThMissile(S_POSITION *pos)
 {
+    printf("TH_MISSILE >\n");
     /* printf("Th %ld > DEBUT MISSILE\n", pthread_self());
     printf("pos L : %d\n",pos->L);
     printf("pos C : %d\n", pos->C); */
     
     pthread_mutex_lock(&mutexGrille);
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE)       // Si la case d'init. du missile est vide alors on créé le missile
-    {   
+    {
+        printf("Init. du missile\n");
         setTab(pos->L, pos->C, MISSILE, pthread_self());      // Init le missile
         DessineMissile(pos->L, pos->C);
         pthread_mutex_unlock(&mutexGrille);
 
         while(pos->L != 0)      // Tant que le missile n'a pas atteint le haut 
         {
+            pthread_mutex_lock(&mutexGrille);
             if (tab[pos->L-1][pos->C].type == ALIEN)        // Si le missile rencontre un alien
             {
-                pthread_mutex_lock(&mutexGrille);
+                printf("Missile rencontre un Alien !\n");
                 EffaceCarre(pos->L, pos->C);        // Efface le missile
                 setTab(pos->L, pos->C, VIDE, 0);
 
@@ -355,9 +358,7 @@ void *fctThMissile(S_POSITION *pos)
             }
             else if (tab[pos->L-1][pos->C].type == BOMBE)       // Si le missile rencontre une bombe
             {
-                printf("THREAD MISSILE\n");
-                pthread_mutex_lock(&mutexGrille);
-
+                printf("Missile rencontre une bombe !\n");
                 EffaceCarre(pos->L-1, pos->C);      // Efface la bombe
                 pthread_kill(tab[pos->L-1][pos->C].tid, SIGINT);
                 setTab(pos->L-1,pos->C, VIDE, 0);
@@ -368,8 +369,6 @@ void *fctThMissile(S_POSITION *pos)
                 pthread_mutex_unlock(&mutexGrille);
                 pthread_exit(NULL); 
             }
-
-            pthread_mutex_lock(&mutexGrille);
 
             EffaceCarre(pos->L, pos->C);        // Efface l'ancien missile
             setTab(pos->L, pos->C, VIDE, 0);
@@ -392,6 +391,7 @@ void *fctThMissile(S_POSITION *pos)
     }
     else
     {
+        printf("Non-init. du missile\n");
         if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
         {
             EffaceCarre(pos->L, pos->C);
@@ -428,7 +428,7 @@ void *fctThMissile(S_POSITION *pos)
 
 void *fctThTimeOut()
 {
-    Attente(600);   // Vraie valeur de base : 600
+    Attente(300);   // Vraie valeur de base : 600
     fireOn=true;
     pthread_exit(NULL);
     return 0;
@@ -847,6 +847,8 @@ void *fctThFlotteAliens()
         y++;
         p++;
     }
+
+    printf("Finito les aliens ont win poto\n");
 
         for (int i=8;i<22;i++)
         {
