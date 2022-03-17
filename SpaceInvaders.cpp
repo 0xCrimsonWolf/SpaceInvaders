@@ -26,6 +26,10 @@
 #define BOUCLIER2 6
 #define AMIRAL 7
 
+// Define ajoutés
+#define PAIR 0
+#define IMPAIR 1
+
 typedef struct
 {
     int type;
@@ -43,7 +47,7 @@ S_CASE tab[NB_LIGNE][NB_COLONNE];
 void Attente(int milli);
 void setTab(int l, int c, int type = VIDE, pthread_t tid = 0);
 
-// Fonction Thread
+// Fonctions Threads
 
 void *fctThVaisseau();
 void *fctThEvent();
@@ -54,7 +58,7 @@ void *fctThFlotteAliens();
 void *fctThScore();
 void *fctThBombe(S_POSITION *);
 
-// Fonction SIGNAUX
+// Fonctions SIGNAUX
 
 void HandlerSIGUSR1(int sig);
 void HandlerSIGUSR2(int sig);
@@ -119,6 +123,10 @@ int score=0;
 bool MAJScore=false;
 
 int delai = 1000;
+
+// Fonctions ajoutées
+
+int RandomNumberPairImpair(bool PP, int compteur, int* current_alien);
 
 // Code du main
 
@@ -507,7 +515,7 @@ void *fctThFlotteAliens()
 
     // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
-    int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens, oneshot=0;
+    int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens, compt=1;
 
     while(y<7)      // Valeur de test   Peut-être à opti. retirer la boucle 7 et à la fin des trois boucles faire un if qui regarde si on est sur la ligne des boucliers
     {
@@ -516,22 +524,7 @@ void *fctThFlotteAliens()
         {
             // Un déplacement sur deux un alien random lache une bombe 
 
-            if((oneshot % 2) == 1)      // nbr impair
-            {
-                if (x==0 || x==2)
-                {
-                    rdm=(rand() % (nbAliens+1));
-                    cur_aliens=0;
-                }
-            }
-            else if ((oneshot % 2) == 0)        // nbr pair
-            {
-                if (x==1 || x==3)
-                {
-                    rdm=(rand() % (nbAliens+1));
-                    cur_aliens=0;
-                }
-            }
+            rdm=RandomNumberPairImpair(IMPAIR, compt, &cur_aliens);
 
             l = 0+p;
             c=8+x;
@@ -622,21 +615,15 @@ void *fctThFlotteAliens()
             //printf("Cycle Complet ->\n");
             Attente(delai);
             x++;
+            compt++;
         }
-
-        //printf("Gauche->droite fini\n");
 
         x=0;
         while (x<4)     // Aller retour droite ---> gauche
         {
             // Un déplacement sur deux un alien random lache une bombe 
 
-            if (x==1 || x==3)
-            {
-                rdm=(rand() % (nbAliens+1));
-                //printf("Nombre aléatoire : %d\n", rdm);
-                cur_aliens=0;
-            }
+            rdm=RandomNumberPairImpair(IMPAIR, compt, &cur_aliens);
 
             l=0+p;
             c=22-x;
@@ -729,6 +716,7 @@ void *fctThFlotteAliens()
             //printf("Cycle Complet <-\n");
             Attente(delai);
             x++;
+            compt++;
         }
 
         //printf("droite->gauche fini\n");
@@ -736,16 +724,29 @@ void *fctThFlotteAliens()
         l=0+p;
         c=8;
 
+        rdm=RandomNumberPairImpair(IMPAIR, compt, &cur_aliens);
+
         for (int i=0;i<6;i++)       // Descente aux enfers
         {
             l+=2;
             c=8;
-            //printf("(%d,%d)\n", l, c);
             for (int j=0;j<11;j++)
             {
-                //printf("(%d,%d)\n", l, c);
                 if (tab[l][c].type == ALIEN)
                 {         
+                    if (cur_aliens==rdm)
+                    {
+                        // Lancement du threadBombe
+                        /* printf("Pos de l'alien : %d;%d\n", l, c);
+                        printf("Pos de la bombe : %d;%d\n", l+1, c); */
+
+                        S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
+                        posBombe->L=l+1;
+                        posBombe->C=c-1;
+                        pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
+                    }
+                    cur_aliens++;
+
                     if (tab[l+1][c].type == MISSILE)
                     {
                         printf("Desc -> MISSILE\n");
@@ -786,7 +787,6 @@ void *fctThFlotteAliens()
 
                         pthread_mutex_unlock(&mutexGrille);
                     }
-                    
                 }
                 if (nbAliens == 0)
                 {
@@ -796,7 +796,7 @@ void *fctThFlotteAliens()
                 c+=2;
             }
         }
-        oneshot++;
+        compt++;
         
         Attente(delai);
         printf("Descente\n");
@@ -1010,7 +1010,7 @@ void *fctThBombe(S_POSITION * pos)
     return 0;
 }
 
-// Handler de Signal
+// Handler des Signaux
 
 void HandlerSIGUSR1(int sig)        // Mouvement pour la direction de gauche
 {
@@ -1079,4 +1079,18 @@ void HandlerSIGQUIT(int sig)
             pthread_exit(NULL);
         }
     } */
+}
+
+// Fonctions utiles
+
+int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
+{
+    int rdm;
+    if ((compteur % 2)==PP)     // PP = Pair ou impair
+    {
+        rdm=(rand() % (nbAliens+1));
+        *current_alien=0;
+    }
+
+    return rdm;
 }
