@@ -101,10 +101,12 @@ pthread_mutex_t mutexGrille;
 pthread_mutex_t mutexFlotteAliens;
 pthread_mutex_t mutexScore;
 pthread_mutex_t mutexAliens;
+pthread_mutex_t mutexVies;
 
 // Variable Conditions
 
 pthread_cond_t condScore;
+pthread_cond_t condVies;
 
 // Variable Spécifiques
 
@@ -121,12 +123,15 @@ int cd = 18;        // Colonne d'alien la plus à droite
 long tidFlotteAliens;
 int score=0;
 bool MAJScore=false;
+int nbVies=3;
+int niveau=0;
 
 int delai = 1000;
 
 // Fonctions ajoutées
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien);
+void DecrementNbVies(void *);
 
 // Code du main
 
@@ -151,8 +156,10 @@ int main(int argc, char *argv[])
     pthread_mutex_init(&mutexFlotteAliens, NULL);
     pthread_mutex_init(&mutexScore, NULL);
     pthread_mutex_init(&mutexAliens, NULL);
+    pthread_mutex_init(&mutexVies, NULL);
 
     pthread_cond_init(&condScore, NULL);
+    pthread_cond_init(&condVies, NULL);
 
     // Armement des signaux
     
@@ -214,25 +221,49 @@ int main(int argc, char *argv[])
     pthread_create(&thInvader,NULL,(void*(*)(void *))fctThInvader,NULL);
     pthread_create(&thScore,NULL,(void*(*)(void *))fctThScore,NULL);
 
-    // Dessin des chiffres
+    // Initialisation des sprites
 
     DessineChiffre(10, 2, 0);
     DessineChiffre(10, 3, 0);
     DessineChiffre(10, 4, 0);
     DessineChiffre(10, 5, 0);
 
-    // Exemples d'utilisation du module Ressources --> a supprimer
-    /* DessineChiffre(13, 4, 7);
-    DessineMissile(4, 12);
-    DessineAlien(2, 12);
-    DessineVaisseauAmiral(0, 15);
-    DessineBombe(8, 16); */
+    DessineChiffre(13, 3, 0);
+    DessineChiffre(13, 4, 0);
+
+    DessineVaisseau(16, 4);
+    DessineVaisseau(16, 3);
 
     // Fermeture de la fenetre
     /* printf("(MAIN %d) Fermeture de la fenetre graphique...", pthread_self());
     fflush(stdout);
     FermetureFenetreGraphique();
     printf("OK\n"); */
+
+    // Gestion des vies
+
+    pthread_mutex_lock(&mutexVies);
+    while(nbVies>0)
+    {
+        pthread_cond_wait(&condVies, &mutexVies);
+        if (nbVies>0)
+        {
+            if (nbVies==2)
+            {
+                EffaceCarre(16,4);
+            }
+            if (nbVies==1)
+            {
+                EffaceCarre(16,3);
+            }
+            pthread_create(&thVaisseau, NULL, (void *(*)(void *))fctThVaisseau, NULL);
+        }
+        else
+        {
+            DessineGameOver(6,11);
+        }
+    }
+    pthread_mutex_unlock(&mutexVies);
 
     pthread_join(thEvent, NULL);
 
@@ -244,6 +275,8 @@ int main(int argc, char *argv[])
 
 void *fctThVaisseau()
 {
+    pthread_cleanup_push(DecrementNbVies, 0);
+
     if (tab[17][colonne].type == VIDE)      // Vérif de si la case de l'init du vaisseau est vide
     {
         pthread_mutex_lock(&mutexGrille);
@@ -256,8 +289,12 @@ void *fctThVaisseau()
 
     while(1)
     {
+        printf("Début de la pause...\n");
         pause();
+        printf("Après la pause...\n");
     }
+
+    pthread_cleanup_pop(1);
 
     pthread_exit(NULL);
 
@@ -274,23 +311,12 @@ void *fctThEvent()
 
     EVENT_GRILLE_SDL event;
 
-    printf("(Th Event %d) Attente du clic sur la croix\n", pthread_self());
     bool ok = false;
     while (!ok)
     {
         event = ReadEvent();
         if (event.type == CROIX)
             ok = true;
-        /* if (event.type == GAUCHE)
-        {
-            if (tab[event.ligne][event.colonne].type == VIDE)
-            {
-                pthread_mutex_lock(&mutexGrille);
-                DessineVaisseau(event.ligne, event.colonne);
-                setTab(event.ligne, event.colonne, VAISSEAU, pthread_self());
-                pthread_mutex_unlock(&mutexGrille);
-            }
-        } */
         if (event.type == CLAVIER)
         {
             if (event.touche == KEY_RIGHT)
@@ -315,15 +341,9 @@ void *fctThEvent()
 
 void *fctThMissile(S_POSITION *pos)
 {
-    printf("TH_MISSILE >\n");
-    /* printf("Th %ld > DEBUT MISSILE\n", pthread_self());
-    printf("pos L : %d\n",pos->L);
-    printf("pos C : %d\n", pos->C); */
-    
     pthread_mutex_lock(&mutexGrille);
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE)       // Si la case d'init. du missile est vide alors on créé le missile
     {
-        printf("Init. du missile\n");
         setTab(pos->L, pos->C, MISSILE, pthread_self());      // Init le missile
         DessineMissile(pos->L, pos->C);
         pthread_mutex_unlock(&mutexGrille);
@@ -333,7 +353,6 @@ void *fctThMissile(S_POSITION *pos)
             pthread_mutex_lock(&mutexGrille);
             if (tab[pos->L-1][pos->C].type == ALIEN)        // Si le missile rencontre un alien
             {
-                printf("Missile rencontre un Alien !\n");
                 EffaceCarre(pos->L, pos->C);        // Efface le missile
                 setTab(pos->L, pos->C, VIDE, 0);
 
@@ -436,24 +455,41 @@ void *fctThTimeOut()
 
 void *fctThInvader()
 {
-    printf("TH Invader > Coucou\n");
-
     int * ret;
 
     while(1)
     {
         pthread_create(&thFlotteAliens,NULL,(void*(*)(void*))fctThFlotteAliens,NULL);
         pthread_join(thFlotteAliens, (void**)&ret);
-        if(*ret == 0)
+
+        if(*ret == 0)       // Si les aliens sont tous morts (aliens LOOSE)
         {
-            delai=delai*0.7;                    // Retrait de 30%
+            delai=delai*0.7;                    // Augmente la vitesse (retrait de 30% sur le délai)
             printf("delai : %d\n", delai);
+
+            // Calcul avec modulo pour afficher chiffre par chiffre le niveau
+
+            niveau++;
+            int cur_niveau=niveau;
+            int i=4;
+            printf("CurNiv = %d\n", cur_niveau);
+            while(cur_niveau!=0 || i>2)
+            {
+                int mod_niveau=cur_niveau%10;
+                cur_niveau=(cur_niveau-mod_niveau)/10;
+                DessineChiffre(13, i, mod_niveau);
+                printf("Dessin en 10,4 de %d\n", mod_niveau);
+                i--;
+            }
         }
-        else
+        else        // Si les aliens ont touché les boucliers (aliens WIN)
         {
             printf("Alien win\n");
             printf("delai : %d\n", delai);
 
+            // On supprime les aliens restants
+
+            pthread_mutex_lock(&mutexGrille);
             for(int i=0;i<NB_LIGNE;i++)
             {
                 for(int j=8;j<NB_COLONNE;j++)
@@ -465,6 +501,7 @@ void *fctThInvader()
                     }
                 }
             }
+            pthread_mutex_unlock(&mutexGrille);
         }
 
         pthread_mutex_lock(&mutexAliens);
@@ -495,7 +532,6 @@ void *fctThInvader()
 void *fctThFlotteAliens()
 {
     tidFlotteAliens=pthread_self();
-    //printf("Debut flotte\n");
 
     // Initalisation des aliens
 
@@ -876,7 +912,7 @@ void *fctThScore()
             pthread_cond_wait(&condScore, &mutexScore);
             printf("Le score est de : %d\n", score);
 
-            // Calcul avec modulo pour afficher un par un
+            // Calcul avec modulo pour afficher chiffre par chiffre
 
             int cur_score=score;
             int i=5;
@@ -905,8 +941,6 @@ void *fctThBombe(S_POSITION * pos)
         setTab(pos->L,pos->C,BOMBE, pthread_self());
         DessineBombe(pos->L,pos->C);
         pthread_mutex_unlock(&mutexGrille);
-        //Attente(1000);
-        //printf("Init de la bombe en : (%d;%d)\n", pos->L, pos->C);
 
         while (pos->L < NB_LIGNE-1)
         {
@@ -1112,19 +1146,8 @@ void HandlerSIGINT(int sig)
 void HandlerSIGQUIT(int sig)
 {
     printf("SIGQUIT\n");
+    sleep(5);
     pthread_exit(NULL);
-    
-    /* pthread_mutex_lock(&mutexGrille);
-    for (int i=8;i<22;i++)
-    {
-        if (tab[17][i].type == VAISSEAU)
-        {
-            EffaceCarre(17,i);
-            setTab(17, i, VIDE, 0);
-            pthread_mutex_unlock(&mutexGrille);
-            pthread_exit(NULL);
-        }
-    } */
 }
 
 // Fonctions utiles
@@ -1139,4 +1162,16 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
     }
 
     return rdm;
+}
+
+void DecrementNbVies(void *p)
+{
+    printf("Fonction de decrementation !\n");
+
+    // Paradigme de réveil
+
+    pthread_mutex_lock(&mutexVies);
+    nbVies--;
+    pthread_mutex_unlock(&mutexVies);
+    pthread_cond_signal(&condVies);
 }
