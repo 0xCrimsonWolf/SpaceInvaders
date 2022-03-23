@@ -131,7 +131,7 @@ int delai = 1000;
 // Fonctions ajoutées
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien);
-void DecrementNbVies(void *);
+void DecrementNbVies();
 
 // Code du main
 
@@ -245,7 +245,9 @@ int main(int argc, char *argv[])
     pthread_mutex_lock(&mutexVies);
     while(nbVies>0)
     {
+        printf("Attente sur nbVies\n");
         pthread_cond_wait(&condVies, &mutexVies);
+        printf("Après l'attente sur nbVies\n");
         if (nbVies>0)
         {
             if (nbVies==2)
@@ -275,7 +277,11 @@ int main(int argc, char *argv[])
 
 void *fctThVaisseau()
 {
-    pthread_cleanup_push(DecrementNbVies, 0);
+    printf("TH_VAISSEAU> \n");
+
+    pthread_cleanup_push((void(*)(void*))DecrementNbVies, 0);
+
+    printf("Push\n");
 
     if (tab[17][colonne].type == VIDE)      // Vérif de si la case de l'init du vaisseau est vide
     {
@@ -287,13 +293,16 @@ void *fctThVaisseau()
         colonne=15;
     }
 
+    printf("VIDE OU PAS\n");
+
     while(1)
     {
-        printf("Début de la pause...\n");
+        printf("Avant pause\n");
         pause();
-        printf("Après la pause...\n");
+        printf("Apres pause\n");
     }
-
+    
+    printf("Je suis passé chez le pop\n");
     pthread_cleanup_pop(1);
 
     pthread_exit(NULL);
@@ -303,11 +312,10 @@ void *fctThVaisseau()
 
 void *fctThEvent()
 {
-    sigset_t mask;
+    /* sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGPIPE);
-    sigprocmask(SIG_SETMASK, &mask, NULL);
+    sigprocmask(SIG_SETMASK, &mask, NULL); */
 
     EVENT_GRILLE_SDL event;
 
@@ -1146,7 +1154,7 @@ void HandlerSIGINT(int sig)
 void HandlerSIGQUIT(int sig)
 {
     printf("SIGQUIT\n");
-    sleep(5);
+    //sleep(5);
     pthread_exit(NULL);
 }
 
@@ -1164,14 +1172,14 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
     return rdm;
 }
 
-void DecrementNbVies(void *p)
+void DecrementNbVies()
 {
     printf("Fonction de decrementation !\n");
-
     // Paradigme de réveil
 
     pthread_mutex_lock(&mutexVies);
     nbVies--;
     pthread_mutex_unlock(&mutexVies);
     pthread_cond_signal(&condVies);
+    printf("Salut à tous les gens c lasalle\n");
 }
