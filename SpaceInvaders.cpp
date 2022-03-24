@@ -131,12 +131,16 @@ int delai = 1000;
 // Fonctions ajoutées
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien);
-void DecrementNbVies();
+void DecrementNbVies(void *p);
 
 // Code du main
 
 int main(int argc, char *argv[])
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     srand((unsigned)time(NULL));
 
     // Ouverture de la fenetre graphique
@@ -245,9 +249,7 @@ int main(int argc, char *argv[])
     pthread_mutex_lock(&mutexVies);
     while(nbVies>0)
     {
-        printf("Attente sur nbVies\n");
         pthread_cond_wait(&condVies, &mutexVies);
-        printf("Après l'attente sur nbVies\n");
         if (nbVies>0)
         {
             if (nbVies==2)
@@ -263,12 +265,19 @@ int main(int argc, char *argv[])
         else
         {
             DessineGameOver(6,11);
+            pthread_cancel(thFlotteAliens);
+            pthread_cancel(thInvader);
+            pthread_cancel(thEvent);
+
+            EVENT_GRILLE_SDL ev;        // A VOIR
+            ev = ReadEvent();
+            if (ev.type == CROIX)
+                FermetureFenetreGraphique();
         }
     }
     pthread_mutex_unlock(&mutexVies);
 
     pthread_join(thEvent, NULL);
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,11 +286,16 @@ int main(int argc, char *argv[])
 
 void *fctThVaisseau()
 {
-    printf("TH_VAISSEAU> \n");
+    sigset_t mask;
+    sigfillset(&mask);
+    sigdelset(&mask, SIGQUIT);
+    sigdelset(&mask, SIGUSR1);
+    sigdelset(&mask, SIGUSR2);
+    sigdelset(&mask, SIGHUP);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
 
     pthread_cleanup_push((void(*)(void*))DecrementNbVies, 0);
 
-    printf("Push\n");
 
     if (tab[17][colonne].type == VIDE)      // Vérif de si la case de l'init du vaisseau est vide
     {
@@ -293,16 +307,11 @@ void *fctThVaisseau()
         colonne=15;
     }
 
-    printf("VIDE OU PAS\n");
-
     while(1)
     {
-        printf("Avant pause\n");
         pause();
-        printf("Apres pause\n");
     }
     
-    printf("Je suis passé chez le pop\n");
     pthread_cleanup_pop(1);
 
     pthread_exit(NULL);
@@ -312,11 +321,6 @@ void *fctThVaisseau()
 
 void *fctThEvent()
 {
-    /* sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT);
-    sigprocmask(SIG_SETMASK, &mask, NULL); */
-
     EVENT_GRILLE_SDL event;
 
     bool ok = false;
@@ -349,6 +353,11 @@ void *fctThEvent()
 
 void *fctThMissile(S_POSITION *pos)
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigdelset(&mask, SIGINT);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     pthread_mutex_lock(&mutexGrille);
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE)       // Si la case d'init. du missile est vide alors on créé le missile
     {
@@ -418,7 +427,6 @@ void *fctThMissile(S_POSITION *pos)
     }
     else
     {
-        printf("Non-init. du missile\n");
         if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
         {
             EffaceCarre(pos->L, pos->C);
@@ -440,7 +448,6 @@ void *fctThMissile(S_POSITION *pos)
         else if(tab[pos->L][pos->C].type == BOMBE)
         {
             EffaceCarre(pos->L, pos->C);
-            //pthread_kill(tab[pos->L][pos->C].tid, SIGINT);
             setTab(pos->L,pos->C, VIDE, 0);
 
             pthread_mutex_unlock(&mutexGrille);
@@ -455,6 +462,10 @@ void *fctThMissile(S_POSITION *pos)
 
 void *fctThTimeOut()
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     Attente(300);   // Vraie valeur de base : 600
     fireOn=true;
     pthread_exit(NULL);
@@ -463,8 +474,11 @@ void *fctThTimeOut()
 
 void *fctThInvader()
 {
-    int * ret;
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
 
+    int * ret;
     while(1)
     {
         pthread_create(&thFlotteAliens,NULL,(void*(*)(void*))fctThFlotteAliens,NULL);
@@ -539,6 +553,10 @@ void *fctThInvader()
 
 void *fctThFlotteAliens()
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     tidFlotteAliens=pthread_self();
 
     // Initalisation des aliens
@@ -898,8 +916,6 @@ void *fctThFlotteAliens()
         {
             if (tab[17][i].type == VAISSEAU)
             {
-                EffaceCarre(17,i);
-                setTab(17, i, VIDE, 0);
                 pthread_kill(tab[17][i].tid, SIGQUIT);
                 pthread_exit(&nbAliens);
             }
@@ -910,6 +926,10 @@ void *fctThFlotteAliens()
 
 void *fctThScore()
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     while (1)
     {
         // Paradigme d'attente
@@ -943,6 +963,11 @@ void *fctThScore()
 
 void *fctThBombe(S_POSITION * pos)
 {
+    sigset_t mask;
+    sigfillset(&mask);
+    sigdelset(&mask, SIGINT);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     pthread_mutex_lock(&mutexGrille);
     if (tab[pos->L][pos->C].type != ALIEN && tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE && tab[pos->L][pos->C].type != MISSILE && tab[pos->L][pos->C].type != VAISSEAU)
     {
@@ -1008,11 +1033,11 @@ void *fctThBombe(S_POSITION * pos)
                 case VAISSEAU:
                     
                     printf("CASE VAISSEAU\n");
-                    EffaceCarre(pos->L+1, pos->C);
+                    //EffaceCarre(pos->L+1, pos->C);
                     
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGQUIT);
 
-                    setTab(pos->L+1, pos->C, VIDE, 0);
+                    //setTab(pos->L+1, pos->C, VIDE, 0);
 
                     EffaceCarre(pos->L, pos->C);
                     setTab(pos->L,pos->C, VIDE, 0);     // Efface la bombe
@@ -1154,7 +1179,14 @@ void HandlerSIGINT(int sig)
 void HandlerSIGQUIT(int sig)
 {
     printf("SIGQUIT\n");
-    //sleep(5);
+
+    // Efface le vaisseau
+
+    pthread_mutex_lock(&mutexGrille);
+    EffaceCarre(NB_LIGNE-1, colonne);
+    setTab(NB_LIGNE-1, colonne, VIDE, 0);
+    pthread_mutex_unlock(&mutexGrille);
+
     pthread_exit(NULL);
 }
 
@@ -1172,14 +1204,15 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
     return rdm;
 }
 
-void DecrementNbVies()
+void DecrementNbVies(void *p)
 {
     printf("Fonction de decrementation !\n");
+
     // Paradigme de réveil
 
     pthread_mutex_lock(&mutexVies);
     nbVies--;
     pthread_mutex_unlock(&mutexVies);
     pthread_cond_signal(&condVies);
-    printf("Salut à tous les gens c lasalle\n");
+    printf("Salut à tous les gens\n");
 }
