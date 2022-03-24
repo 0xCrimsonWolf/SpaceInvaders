@@ -57,6 +57,7 @@ void *fctThInvader();
 void *fctThFlotteAliens();
 void *fctThScore();
 void *fctThBombe(S_POSITION *);
+void *fctThAmiral();
 
 // Fonctions SIGNAUX
 
@@ -65,6 +66,8 @@ void HandlerSIGUSR2(int sig);
 void HandlerSIGHUP(int sig);
 void HandlerSIGINT(int sig);
 void HandlerSIGQUIT(int sig);
+void HandlerSIGALRM(int sig);
+void HandlerSIGCHLD(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Attente(int milli)
@@ -94,19 +97,20 @@ pthread_t thInvader;
 pthread_t thFlotteAliens;
 pthread_t thScore;
 pthread_t thBombe;
+pthread_t thAmiral;
 
 // Variable Mutex
 
 pthread_mutex_t mutexGrille;
-pthread_mutex_t mutexFlotteAliens;
 pthread_mutex_t mutexScore;
-pthread_mutex_t mutexAliens;
+pthread_mutex_t mutexAliens; // (mutexFlotteAlien)
 pthread_mutex_t mutexVies;
 
 // Variable Conditions
 
 pthread_cond_t condScore;
 pthread_cond_t condVies;
+pthread_cond_t condFlotteAliens;
 
 // Variable Spécifiques
 
@@ -157,13 +161,13 @@ int main(int argc, char *argv[])
     // Initialisation des mutex et variables de condition
     
     pthread_mutex_init(&mutexGrille, NULL);
-    pthread_mutex_init(&mutexFlotteAliens, NULL);
     pthread_mutex_init(&mutexScore, NULL);
     pthread_mutex_init(&mutexAliens, NULL);
     pthread_mutex_init(&mutexVies, NULL);
 
     pthread_cond_init(&condScore, NULL);
     pthread_cond_init(&condVies, NULL);
+    pthread_cond_init(&condFlotteAliens, NULL);
 
     // Armement des signaux
     
@@ -197,6 +201,18 @@ int main(int argc, char *argv[])
     sigemptyset(&E.sa_mask);
     sigaction(SIGQUIT, &E, NULL);
 
+    struct sigaction F;
+    F.sa_handler = HandlerSIGALRM;
+    F.sa_flags = 0;
+    sigemptyset(&F.sa_mask);
+    sigaction(SIGALRM, &F, NULL);
+
+    struct sigaction G;
+    G.sa_handler = HandlerSIGCHLD;
+    G.sa_flags = 0;
+    sigemptyset(&G.sa_mask);
+    sigaction(SIGCHLD, &G, NULL);
+
     // Initialisation de tab
 
     for (int l = 0; l < NB_LIGNE; l++)
@@ -224,6 +240,7 @@ int main(int argc, char *argv[])
     pthread_create(&thEvent, NULL, (void *(*)(void *))fctThEvent, NULL);
     pthread_create(&thInvader,NULL,(void*(*)(void *))fctThInvader,NULL);
     pthread_create(&thScore,NULL,(void*(*)(void *))fctThScore,NULL);
+    pthread_create(&thAmiral,NULL,(void*(*)(void *))fctThAmiral,NULL);
 
     // Initialisation des sprites
 
@@ -237,12 +254,6 @@ int main(int argc, char *argv[])
 
     DessineVaisseau(16, 4);
     DessineVaisseau(16, 3);
-
-    // Fermeture de la fenetre
-    /* printf("(MAIN %d) Fermeture de la fenetre graphique...", pthread_self());
-    fflush(stdout);
-    FermetureFenetreGraphique();
-    printf("OK\n"); */
 
     // Gestion des vies
 
@@ -267,17 +278,15 @@ int main(int argc, char *argv[])
             DessineGameOver(6,11);
             pthread_cancel(thFlotteAliens);
             pthread_cancel(thInvader);
-            pthread_cancel(thEvent);
-
-            EVENT_GRILLE_SDL ev;        // A VOIR
-            ev = ReadEvent();
-            if (ev.type == CROIX)
-                FermetureFenetreGraphique();
+            pthread_cancel(thBombe);
+            pthread_cancel(thMissile);
+            pthread_cancel(thAmiral);
         }
     }
     pthread_mutex_unlock(&mutexVies);
 
     pthread_join(thEvent, NULL);
+    return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -379,6 +388,8 @@ void *fctThMissile(S_POSITION *pos)
 
                 pthread_mutex_lock(&mutexAliens);
                 nbAliens--;
+                if ((nbAliens%6)==0)
+                    pthread_cond_signal(&condFlotteAliens);
                 pthread_mutex_unlock(&mutexAliens);
 
                 // Incrémentation du score + signal
@@ -404,6 +415,19 @@ void *fctThMissile(S_POSITION *pos)
 
                 pthread_mutex_unlock(&mutexGrille);
                 pthread_exit(NULL); 
+            }
+            else if (tab[pos->L-1][pos->C].type == AMIRAL)
+            {
+                printf("BOOOOOM DANS TA GUEULE\n");
+
+                // Incrémentation du score de 10
+
+                pthread_mutex_lock(&mutexScore);
+                score+=10;
+                pthread_mutex_unlock(&mutexScore);
+                pthread_cond_signal(&condScore);
+
+                // SIGCHLD à envoyer
             }
 
             EffaceCarre(pos->L, pos->C);        // Efface l'ancien missile
@@ -611,24 +635,7 @@ void *fctThFlotteAliens()
                         }
                         cur_aliens++;
 
-                        pthread_mutex_lock(&mutexGrille);
-
-                        /* if (tab[l-1][c+1].type == BOMBE)
-                        {
-                            printf("GD -> Bombe\n");
-                            
-                            EffaceCarre(l-1,c+1);
-                            pthread_kill(tab[l-1][c+1].tid, SIGINT);
-                            setTab(l-1,c+1, VIDE, 0);
-
-                            Attente(1000);
-                            
-                            S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
-                            posBombe->L=l+1;
-                            posBombe->C=c+1;
-                            pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe);
-                            
-                        }*/                 
+                        pthread_mutex_lock(&mutexGrille);                
                         
                         if (tab[l][c+1].type == MISSILE)
                         {
@@ -643,6 +650,8 @@ void *fctThFlotteAliens()
 
                             pthread_mutex_lock(&mutexAliens);
                             nbAliens--;
+                            if ((nbAliens%6)==0)
+                                pthread_cond_signal(&condFlotteAliens);
                             pthread_mutex_unlock(&mutexAliens);
                             
                             printf("NBALIENS: %d\n", nbAliens);
@@ -732,19 +741,6 @@ void *fctThFlotteAliens()
 
                         pthread_mutex_lock(&mutexGrille);
 
-                        /* if (tab[l-1][c-1].type == BOMBE)
-                        {
-                            printf("DG -> Bombe\n");
-                            EffaceCarre(l-1,c-1);
-                            pthread_kill(tab[l-1][c-1].tid, SIGINT);
-                            setTab(l-1,c-1, VIDE, 0);
-                            
-                            S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
-                            posBombe->L=l+1;
-                            posBombe->C=c-1;
-                            pthread_create(&thBombe,NULL,(void*(*)(void *))fctThBombe, posBombe); 
-                        }*/
-
                         if (tab[l][c-1].type == MISSILE)
                         {
                             printf("DG -> Missile\n");
@@ -758,6 +754,8 @@ void *fctThFlotteAliens()
 
                             pthread_mutex_lock(&mutexAliens);
                             nbAliens--;
+                            if ((nbAliens%6)==0)
+                                pthread_cond_signal(&condFlotteAliens);
                             pthread_mutex_unlock(&mutexAliens);
                             printf("NBALIENS: %d\n", nbAliens);
 
@@ -830,8 +828,6 @@ void *fctThFlotteAliens()
                     if (cur_aliens==rdm)
                     {
                         // Lancement du threadBombe
-                        /* printf("Pos de l'alien : %d;%d\n", l, c);
-                        printf("Pos de la bombe : %d;%d\n", l+1, c); */
 
                         S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
                         posBombe->L=l+2;
@@ -857,6 +853,8 @@ void *fctThFlotteAliens()
 
                         pthread_mutex_lock(&mutexAliens);
                         nbAliens--;
+                        if ((nbAliens%6)==0)
+                            pthread_cond_signal(&condFlotteAliens);
                         pthread_mutex_unlock(&mutexAliens);
                         printf("NBALIENS: %d\n", nbAliens);
 
@@ -1126,6 +1124,91 @@ void *fctThBombe(S_POSITION * pos)
     return 0;
 }
 
+void *fctThAmiral()
+{
+    sigset_t mask;
+    sigfillset(&mask);
+    sigdelset(&mask, SIGALRM);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
+    printf("Vaisseau Amiral\n");
+
+    while(1)
+    {
+        printf("nbAliens = %d\n", nbAliens);
+        printf("modulo aliens = %d\n", nbAliens%6);
+
+        pthread_mutex_lock(&mutexAliens);
+        while((nbAliens %6) != 0 || (nbAliens == 0))
+        {
+            pthread_cond_wait(&condFlotteAliens, &mutexAliens);
+        }
+        pthread_mutex_unlock(&mutexAliens);
+
+        bool DG;            // 0 = Gauche 1 = Droite
+        int pos, temps;
+        DG = (rand() % (2 + 1));
+        pos = rand() % ((NB_COLONNE - 2) - 8 + 1) + 8;
+        temps = rand() % (12 - 4 + 1) + 4;
+        alarm(temps);
+
+        // Initialisation de l'Amiral
+
+        if (tab[0][pos].type == VIDE && tab[0][pos + 1].type == VIDE)
+        {
+            DessineVaisseauAmiral(0, pos);
+            setTab(0, pos, AMIRAL, pthread_self());
+            setTab(0, pos + 1, AMIRAL, pthread_self());
+        }
+
+        while(1)
+        {
+            Attente(200);
+            EffaceCarre(0, pos);
+            EffaceCarre(0, pos+1);
+            setTab(0, pos, VIDE, 0);
+            setTab(0, pos+1, VIDE, 0);
+
+            if (DG)     // Chemin en allant à droite --->
+            {
+                if (pos + 1 > (NB_COLONNE - 2))
+                {
+                    pos = 8; // On se remet tout à gauche
+
+                    DessineVaisseauAmiral(0, pos);
+                    setTab(0, pos, AMIRAL, pthread_self());
+                    setTab(0, pos + 1, AMIRAL, pthread_self());
+                }
+                else
+                {
+                    pos++;
+                    DessineVaisseauAmiral(0, pos);
+                    setTab(0, pos, AMIRAL, pthread_self());
+                    setTab(0, pos + 1, AMIRAL, pthread_self());
+                }
+            }
+            else if (!DG) // Chemin en allant à gauche <---
+            {
+                if (pos - 1 < 8)
+                {
+                    pos = 21; // On se remet tout à droite
+
+                    DessineVaisseauAmiral(0, pos);
+                    setTab(0, pos, AMIRAL, pthread_self());
+                    setTab(0, pos + 1, AMIRAL, pthread_self());
+                }
+                else
+                {
+                    pos--;
+                    DessineVaisseauAmiral(0, pos);
+                    setTab(0, pos, AMIRAL, pthread_self());
+                    setTab(0, pos + 1, AMIRAL, pthread_self());
+                }
+            }
+        }
+    }
+}
+
 // Handler des Signaux
 
 void HandlerSIGUSR1(int sig)        // Mouvement pour la direction de gauche
@@ -1190,6 +1273,28 @@ void HandlerSIGQUIT(int sig)
     pthread_exit(NULL);
 }
 
+void HandlerSIGALRM(int sig)
+{
+    printf("SIGALRM\n");
+
+    int i = 8;
+    while(tab[0][i].type != AMIRAL) i++;
+
+    if(tab[0][i].type == AMIRAL)
+    {
+        EffaceCarre(0,i);
+        EffaceCarre(0,i+1);
+
+        setTab(0,i,VIDE,0);
+        setTab(0,i+1,VIDE,0);
+    }
+}
+
+void HandlerSIGCHLD(int sig)
+{
+    printf("SIGCHLD\n");
+}
+
 // Fonctions utiles
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
@@ -1216,3 +1321,4 @@ void DecrementNbVies(void *p)
     pthread_cond_signal(&condVies);
     printf("Salut à tous les gens\n");
 }
+
