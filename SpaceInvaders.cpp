@@ -1081,7 +1081,6 @@ void *fctThBombe(S_POSITION * pos)
     }
     else
     {
-        printf("ELSE\n");
         if (tab[pos->L][pos->C].type == BOUCLIER2)
         {
             printf("BOUCLIER 2\n");
