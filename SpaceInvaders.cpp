@@ -1148,8 +1148,6 @@ void *fctThAmiral()
 
     while(1)
     {
-        printf("Début boucle while 1 Amiral\n");
-
         if (!OK)
         {
             pthread_mutex_lock(&mutexGrille);
@@ -1160,24 +1158,14 @@ void *fctThAmiral()
             pthread_mutex_unlock(&mutexGrille);
         }
 
-        /* pthread_mutex_lock(&mutexAliens);
-        while((nbAliens %6) == 0 && (nbAliens != 0))
-        {
-            pthread_cond_wait(&condFlotteAliens, &mutexAliens);
-        }
-        pthread_mutex_unlock(&mutexAliens); */
-
         pthread_mutex_lock(&mutexAliens);
         pthread_cond_wait(&condFlotteAliens, &mutexAliens);
         pthread_mutex_unlock(&mutexAliens);
 
-        printf("Condwait débloqué\n");
-
+        OK = true;
         DG = (rand() % (2 + 1));
         pos = rand() % ((NB_COLONNE - 2) - 8 + 1) + 8;
-        temps = rand() % (22 - 4 + 1) + 4;                      // Vraie valeur :   temps = rand() % (12 - 4 + 1) + 4;    
-        printf("Envoi de SIGALRM à %d sec.\n", temps);
-        temps=60;
+        temps = rand() % (12 - 4 + 1) + 4;
         alarm(temps);
 
         // Initialisation de l'Amiral
@@ -1339,7 +1327,7 @@ void HandlerSIGALRM(int sig)
 
 void HandlerSIGCHLD(int sig)
 {
-    printf("SIGCHLD reçu dans %ld\n", pthread_self());
+    printf("SIGCHLD\n");
 
     OK=false;
     alarm(0);
