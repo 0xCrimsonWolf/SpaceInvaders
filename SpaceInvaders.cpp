@@ -58,6 +58,7 @@ void *fctThFlotteAliens();
 void *fctThScore();
 void *fctThBombe(S_POSITION *);
 void *fctThAmiral();
+void *fctThBouclier(int *);
 
 // Fonctions SIGNAUX
 
@@ -68,6 +69,7 @@ void HandlerSIGINT(int sig);
 void HandlerSIGQUIT(int sig);
 void HandlerSIGALRM(int sig);
 void HandlerSIGCHLD(int sig);
+void HandlerSIGPIPE(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Attente(int milli)
@@ -98,6 +100,7 @@ pthread_t thFlotteAliens;
 pthread_t thScore;
 pthread_t thBombe;
 pthread_t thAmiral;
+pthread_t thBouclier;
 
 // Variable Mutex
 
@@ -105,6 +108,7 @@ pthread_mutex_t mutexGrille;
 pthread_mutex_t mutexScore;
 pthread_mutex_t mutexAliens; // (mutexFlotteAlien)
 pthread_mutex_t mutexVies;
+pthread_mutex_t mutexBouclier;
 
 // Variable Conditions
 
@@ -113,6 +117,9 @@ pthread_cond_t condVies;
 pthread_cond_t condFlotteAliens;
 
 // Variable Spécifiques
+
+pthread_key_t cle_etat;
+pthread_key_t cle_pos;
 
 // Variable Globales
 
@@ -136,6 +143,7 @@ int delai = 1000;
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien);
 void DecrementNbVies(void *p);
+void Destructeur(void *p);
 
 // Code du main
 
@@ -164,10 +172,14 @@ int main(int argc, char *argv[])
     pthread_mutex_init(&mutexScore, NULL);
     pthread_mutex_init(&mutexAliens, NULL);
     pthread_mutex_init(&mutexVies, NULL);
+    pthread_mutex_init(&mutexBouclier, NULL);
 
     pthread_cond_init(&condScore, NULL);
     pthread_cond_init(&condVies, NULL);
     pthread_cond_init(&condFlotteAliens, NULL);
+
+    pthread_key_create(&cle_etat, Destructeur);
+    pthread_key_create(&cle_pos, Destructeur);
 
     // Armement des signaux
     
@@ -213,6 +225,12 @@ int main(int argc, char *argv[])
     sigemptyset(&G.sa_mask);
     sigaction(SIGCHLD, &G, NULL);
 
+    struct sigaction H;
+    H.sa_handler = HandlerSIGPIPE;
+    H.sa_flags = 0;
+    sigemptyset(&H.sa_mask);
+    sigaction(SIGPIPE, &H, NULL);
+
     // Initialisation de tab
 
     for (int l = 0; l < NB_LIGNE; l++)
@@ -221,18 +239,45 @@ int main(int argc, char *argv[])
 
     // Initialisation des boucliers
 
-    setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 11, 1);
-    setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 12, 1);
-    setTab(NB_LIGNE - 2, 13, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 13, 1);
-    setTab(NB_LIGNE - 2, 17, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 17, 1);
-    setTab(NB_LIGNE - 2, 18, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 18, 1);
-    setTab(NB_LIGNE - 2, 19, BOUCLIER1, 0);
-    DessineBouclier(NB_LIGNE - 2, 19, 1);
+    /* int num_bouclier=0;
+
+    pthread_mutex_lock(&mutexBouclier);
+
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10);
+
+    pthread_mutex_lock(&mutexBouclier);
+    num_bouclier++;
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10);
+
+    pthread_mutex_lock(&mutexBouclier);
+    num_bouclier++;
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10);
+
+    pthread_mutex_lock(&mutexBouclier);
+    num_bouclier=6;
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10);
+
+    pthread_mutex_lock(&mutexBouclier);
+    num_bouclier++;
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10);
+
+    pthread_mutex_lock(&mutexBouclier);
+    num_bouclier++;
+    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
+    Attente(10); */
+
+    for (int i = -1; i < 7; i++)
+    {
+        pthread_mutex_lock(&mutexBouclier);
+        pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &i);
+        if (i == 2)
+            i += 3;
+    }
 
     // Creation des threads
 
@@ -460,20 +505,22 @@ void *fctThMissile(S_POSITION *pos)
     }
     else
     {
+        printf("ELSE\n");
         if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
         {
-            EffaceCarre(pos->L, pos->C);
-            setTab(pos->L,pos->C, VIDE, 0);
-            setTab(pos->L, pos->C, BOUCLIER2, pthread_self());
-            DessineBouclier(pos->L,pos->C, BOUCLIER2);
+            printf("BOUCLIER 1\n");
+            printf("tid à kill : %ld\n", tab[pos->L][pos->C].tid);
+            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
         }
         else if (tab[pos->L][pos->C].type == BOUCLIER2)
         {
-            EffaceCarre(pos->L, pos->C);            // Si la case d'init. du missile est un bouclier rouge alors on efface le bouclier
-            setTab(pos->L, pos->C, VIDE, 0);
+            printf("BOUCLIER 1\n");
+            // Si la case d'init. du missile est un bouclier rouge alors on efface le bouclier
+
+            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL); 
@@ -564,8 +611,16 @@ void *fctThInvader()
         pthread_mutex_unlock(&mutexAliens);
 
         // Ré-initialisation des boucliers à la base 
+        
+        for (int i=0;i<8;i++)
+        {
+            pthread_mutex_lock(&mutexBouclier);
+            pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &i);
+            if (i==2)
+                i+=3;
+        }
 
-        setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
+        /* setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 11, 1);
         setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 12, 1);
@@ -576,7 +631,7 @@ void *fctThInvader()
         setTab(NB_LIGNE - 2, 18, BOUCLIER1, 0);
         DessineBouclier(NB_LIGNE - 2, 18, 1);
         setTab(NB_LIGNE - 2, 19, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 19, 1);        
+        DessineBouclier(NB_LIGNE - 2, 19, 1);  */       
 
         Attente(1000);
     }
@@ -990,8 +1045,8 @@ void *fctThBombe(S_POSITION * pos)
                 case BOUCLIER2:
                     
                     printf("CASE BOUCLIER2\n");
-                    EffaceCarre(pos->L+1, pos->C);            // Si la prochaine case est un bouclier rouge alors on efface le bouclier
-                    setTab(pos->L+1, pos->C, VIDE, 0);
+                    
+                    pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
                     EffaceCarre(pos->L, pos->C);
                     setTab(pos->L,pos->C, VIDE, 0);     // Efface la bombe
@@ -1002,11 +1057,8 @@ void *fctThBombe(S_POSITION * pos)
                 case BOUCLIER1:
                     
                     printf("CASE BOUCLIER1\n");
-                    EffaceCarre(pos->L+1, pos->C);            // Si la prochaine case est un bouclier vert alors on passe le bouclier en rouge (bouclier2)
-                    setTab(pos->L+1,pos->C, VIDE, 0);
-
-                    setTab(pos->L+1, pos->C, BOUCLIER2, pthread_self());
-                    DessineBouclier(pos->L+1,pos->C, BOUCLIER2);
+                    
+                    pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
                     EffaceCarre(pos->L, pos->C);
                     setTab(pos->L,pos->C, VIDE, 0);     // Efface la bombe
@@ -1084,8 +1136,7 @@ void *fctThBombe(S_POSITION * pos)
         if (tab[pos->L][pos->C].type == BOUCLIER2)
         {
             printf("BOUCLIER 2\n");
-            EffaceCarre(pos->L, pos->C);            // Si la case d'init. de la bombe est un bouclier rouge alors on efface le bouclier
-            setTab(pos->L, pos->C, VIDE, 0);
+            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL); 
@@ -1093,11 +1144,7 @@ void *fctThBombe(S_POSITION * pos)
         else if (tab[pos->L][pos->C].type == BOUCLIER1)
         {
             printf("BOUCLIER 1\n");
-            EffaceCarre(pos->L, pos->C);        // Si la case d'init. de la bombe est un bouclier vers alors on remplace par un bouclier rouge (bouclier2)
-            setTab(pos->L,pos->C, VIDE, 0);
-            
-            setTab(pos->L, pos->C, BOUCLIER2, pthread_self());
-            DessineBouclier(pos->L,pos->C, BOUCLIER2);
+            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
@@ -1243,6 +1290,53 @@ void *fctThAmiral()
     }
 }
 
+void *fctThBouclier(int *num)
+{
+    printf("Thread Bouclier %d : %ld\n",(*num), pthread_self());
+
+    sigset_t Masque;
+	sigfillset(&Masque);
+	sigdelset(&Masque, SIGPIPE);
+	sigprocmask(SIG_SETMASK, &Masque, NULL);
+
+    // Allocation dynamique + passage de l'état du bouclier en variable spécifique
+
+    int * Etat_bouclier = (int*) malloc(sizeof(int));
+    *Etat_bouclier=1;
+    pthread_setspecific(cle_etat, Etat_bouclier);
+
+    // Allocation dynamique + passage de la position du bouclier en variable spécifique
+
+    int * numero_bouclier = (int*) malloc(sizeof(int));
+    *numero_bouclier=*num;
+    pthread_setspecific(cle_pos, numero_bouclier);
+
+    pthread_mutex_unlock(&mutexBouclier);
+
+    // Dessine le bouclier sur base du numéro reçu en param
+
+    pthread_mutex_lock(&mutexGrille);
+    setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER1, pthread_self());
+    DessineBouclier(NB_LIGNE - 2, 11+(*num), 1);
+    pthread_mutex_unlock(&mutexGrille);
+
+    if (*Etat_bouclier==2)
+    {
+        pthread_mutex_lock(&mutexGrille);
+        setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER2, pthread_self());
+        DessineBouclier(NB_LIGNE - 2, 11+(*num), 2);
+        pthread_mutex_unlock(&mutexGrille);
+    }
+
+    pause();
+    pause();
+
+    pthread_exit(NULL);
+    return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Handler des Signaux
 
 void HandlerSIGUSR1(int sig)        // Mouvement pour la direction de gauche
@@ -1334,6 +1428,36 @@ void HandlerSIGCHLD(int sig)
     return;
 }
 
+void HandlerSIGPIPE(int sig)
+{
+    printf("SIGPIPE\n");
+
+    int *num = (int*) pthread_getspecific(cle_pos);
+    int *etat = (int*) pthread_getspecific(cle_etat);
+
+    printf("Position du bouclier touché : %d\nEtat du bouclier touché : %d\n", *num, *etat);
+    
+    if (*etat==1)
+    {
+        printf("Tire sur un intact\n");
+        setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER2, pthread_self());
+        DessineBouclier(NB_LIGNE - 2, 11+(*num), BOUCLIER2);
+        *etat=2;
+        pthread_setspecific(cle_etat, etat);
+    }
+    else if (*etat==2)
+    {
+        printf("Passage abimé\n");
+        setTab(NB_LIGNE - 2, 11+(*num), VIDE, 0);
+        EffaceCarre(NB_LIGNE - 2, 11+(*num));
+    }
+    
+
+    return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Fonctions utiles
 
 int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
@@ -1361,3 +1485,8 @@ void DecrementNbVies(void *p)
     printf("Salut à tous les gens\n");
 }
 
+void Destructeur(void *p)
+{
+    //printf("---- (Destructeur) Libération zone spécifique ----\n");
+    free(p);
+}
