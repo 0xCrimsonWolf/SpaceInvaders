@@ -239,45 +239,15 @@ int main(int argc, char *argv[])
 
     // Initialisation des boucliers
 
-    /* int num_bouclier=0;
-
-    pthread_mutex_lock(&mutexBouclier);
-
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10);
-
-    pthread_mutex_lock(&mutexBouclier);
-    num_bouclier++;
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10);
-
-    pthread_mutex_lock(&mutexBouclier);
-    num_bouclier++;
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10);
-
-    pthread_mutex_lock(&mutexBouclier);
-    num_bouclier=6;
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10);
-
-    pthread_mutex_lock(&mutexBouclier);
-    num_bouclier++;
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10);
-
-    pthread_mutex_lock(&mutexBouclier);
-    num_bouclier++;
-    pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
-    Attente(10); */
-
     int p = 0;
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 9; i++)
     {
         pthread_mutex_lock(&mutexBouclier);
-        pthread_create(&thBouclier[p], NULL, (void *(*)(void *))fctThBouclier, &i);
-        if (i == 2)
+        
+        if (i == 3)
             i += 3;
+        pthread_create(&thBouclier[p], NULL, (void *(*)(void *))fctThBouclier, &i);
+
         p++;
     }
 
@@ -400,10 +370,13 @@ void *fctThEvent()
         }
     }
 
+    // On remets le nombre de vie a 0 pour quitter la condition du main sur nbVies
     pthread_mutex_lock(&mutexVies);
     nbVies = 0;
     pthread_mutex_unlock(&mutexVies);
     pthread_cond_signal(&condVies);
+
+    FermetureFenetreGraphique();
 
     pthread_exit(NULL);
 }
@@ -616,27 +589,16 @@ void *fctThInvader()
         // Ré-initialisation des boucliers à la base 
         
         int p = 0;
-        for (int i=0;i<8;i++)
+        for (int i = 0; i < 9; i++)
         {
             pthread_mutex_lock(&mutexBouclier);
+            
+            if (i == 3)
+                i += 3;
             pthread_create(&thBouclier[p], NULL, (void *(*)(void *))fctThBouclier, &i);
-            if (i==2)
-                i+=3;
+
             p++;
         }
-
-        /* setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 11, 1);
-        setTab(NB_LIGNE - 2, 12, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 12, 1);
-        setTab(NB_LIGNE - 2, 13, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 13, 1);
-        setTab(NB_LIGNE - 2, 17, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 17, 1);
-        setTab(NB_LIGNE - 2, 18, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 18, 1);
-        setTab(NB_LIGNE - 2, 19, BOUCLIER1, 0);
-        DessineBouclier(NB_LIGNE - 2, 19, 1);  */       
 
         Attente(1000);
     }
@@ -1297,7 +1259,9 @@ void *fctThAmiral()
 
 void *fctThBouclier(int *num)
 {
-    printf("Thread Bouclier %d : %ld\n",(*num), pthread_self());
+    int numeroBouc = (*num);
+    numeroBouc--;
+    printf("Thread Bouclier %d : %ld\n",numeroBouc, pthread_self());
 
     sigset_t Masque;
 	sigfillset(&Masque);
@@ -1313,7 +1277,7 @@ void *fctThBouclier(int *num)
     // Allocation dynamique + passage de la position du bouclier en variable spécifique
 
     int * numero_bouclier = (int*) malloc(sizeof(int));
-    *numero_bouclier=*num;
+    *numero_bouclier=numeroBouc;
     pthread_setspecific(cle_pos, numero_bouclier);
 
     pthread_mutex_unlock(&mutexBouclier);
@@ -1321,15 +1285,15 @@ void *fctThBouclier(int *num)
     // Dessine le bouclier sur base du numéro reçu en param
 
     pthread_mutex_lock(&mutexGrille);
-    setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER1, pthread_self());
-    DessineBouclier(NB_LIGNE - 2, 11+(*num), 1);
+    setTab(NB_LIGNE - 2, 11+ numeroBouc, BOUCLIER1, pthread_self());
+    DessineBouclier(NB_LIGNE - 2, 11+ numeroBouc, 1);
     pthread_mutex_unlock(&mutexGrille);
 
     if (*Etat_bouclier==2)
     {
         pthread_mutex_lock(&mutexGrille);
-        setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER2, pthread_self());
-        DessineBouclier(NB_LIGNE - 2, 11+(*num), 2);
+        setTab(NB_LIGNE - 2, 11+ numeroBouc, BOUCLIER2, pthread_self());
+        DessineBouclier(NB_LIGNE - 2, 11+ numeroBouc, 2);
         pthread_mutex_unlock(&mutexGrille);
     }
 
