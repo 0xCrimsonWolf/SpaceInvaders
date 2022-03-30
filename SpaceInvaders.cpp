@@ -153,6 +153,8 @@ int main(int argc, char *argv[])
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
 
+    printf("Thread Principal lancé\n");
+
     srand((unsigned)time(NULL));
 
     // Ouverture de la fenetre graphique
@@ -320,7 +322,6 @@ void *fctThVaisseau()
 
     pthread_cleanup_push((void(*)(void*))DecrementNbVies, 0);
 
-
     if (tab[17][colonne].type == VIDE)      // Vérif de si la case de l'init du vaisseau est vide
     {
         pthread_mutex_lock(&mutexGrille);
@@ -371,6 +372,7 @@ void *fctThEvent()
     }
 
     // On remets le nombre de vie a 0 pour quitter la condition du main sur nbVies
+
     pthread_mutex_lock(&mutexVies);
     nbVies = 0;
     pthread_mutex_unlock(&mutexVies);
@@ -439,9 +441,7 @@ void *fctThMissile(S_POSITION *pos)
             }
             else if (tab[pos->L-1][pos->C].type == AMIRAL)
             {
-                printf("BOOOOOM DANS TA GUEULE\n");
-
-                // Incrémentation du score de 10
+                // Incrémentation du score de 10 (paradigme)
 
                 pthread_mutex_lock(&mutexScore);
                 score+=10;
@@ -482,19 +482,18 @@ void *fctThMissile(S_POSITION *pos)
     else
     {
         printf("ELSE\n");
-        if(tab[pos->L][pos->C].type == BOUCLIER1)        // Si la case d'init. du missile est un bouclier vert alors on le passe en bouclier rouge
+        if(tab[pos->L][pos->C].type == BOUCLIER1)           // Doublon avec celui du bas pourrait-on en faire un seul ?
         {
             printf("BOUCLIER 1\n");
-            printf("tid à kill : %ld\n", tab[pos->L][pos->C].tid);
+
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
         }
-        else if (tab[pos->L][pos->C].type == BOUCLIER2)
+        else if (tab[pos->L][pos->C].type == BOUCLIER2)     // Doublon cf.
         {
             printf("BOUCLIER 1\n");
-            // Si la case d'init. du missile est un bouclier rouge alors on efface le bouclier
 
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
@@ -630,13 +629,12 @@ void *fctThFlotteAliens()
     }
 
     Attente(delai);
-    //printf("Debut boucle miteuse\n");
 
     // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
     int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens, compt=1;
 
-    while(y<7)      // Valeur de test   Peut-être à opti. retirer la boucle 7 et à la fin des trois boucles faire un if qui regarde si on est sur la ligne des boucliers
+    while(y<7)
     {
         int x=0;
         while (x<4)     // Aller retour gauche ---> droite
@@ -758,8 +756,6 @@ void *fctThFlotteAliens()
                         if (cur_aliens==rdm)
                         {
                             // Lancement du threadBombe
-                            /* printf("Pos de l'alien : %d;%d\n", l, c);
-                            printf("Pos de la bombe : %d;%d\n", l+1, c); */
 
                             S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
                             posBombe->L=l+1;
@@ -939,7 +935,7 @@ void *fctThFlotteAliens()
         p++;
     }
 
-    printf("Finito les aliens ont win poto\n");
+    printf("Les aliens ont gagné...\n");
 
         for (int i=8;i<22;i++)
         {
@@ -1011,7 +1007,7 @@ void *fctThBombe(S_POSITION * pos)
             {
                 case BOUCLIER2:
                     
-                    printf("CASE BOUCLIER2\n");
+                    printf("CASE BOUCLIER2\n");         // Doublon à fusionner ?
                     
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
@@ -1023,7 +1019,7 @@ void *fctThBombe(S_POSITION * pos)
                     break;
                 case BOUCLIER1:
                     
-                    printf("CASE BOUCLIER1\n");
+                    printf("CASE BOUCLIER1\n");     // Cf. doublon
                     
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
@@ -1059,11 +1055,8 @@ void *fctThBombe(S_POSITION * pos)
                 case VAISSEAU:
                     
                     printf("CASE VAISSEAU\n");
-                    //EffaceCarre(pos->L+1, pos->C);
                     
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGQUIT);
-
-                    //setTab(pos->L+1, pos->C, VIDE, 0);
 
                     EffaceCarre(pos->L, pos->C);
                     setTab(pos->L,pos->C, VIDE, 0);     // Efface la bombe
@@ -1154,10 +1147,8 @@ void *fctThAmiral()
     sigdelset(&mask, SIGCHLD);
     sigprocmask(SIG_SETMASK, &mask, NULL);
 
-    bool DG;            // 0 = Gauche 1 = Droite
+    bool direction;            // 0 = Gauche 1 = Droite
     int pos, temps;
-
-    printf("Vaisseau Amiral\n");
 
     while(1)
     {
@@ -1176,7 +1167,7 @@ void *fctThAmiral()
         pthread_mutex_unlock(&mutexAliens);
 
         OK = true;
-        DG = (rand() % (2 + 1));
+        direction = (rand() % (2 + 1));
         pos = rand() % ((NB_COLONNE - 2) - 8 + 1) + 8;
         temps = rand() % (12 - 4 + 1) + 4;
         alarm(temps);
@@ -1206,7 +1197,7 @@ void *fctThAmiral()
 
             // Re-construction de l'Amiral
 
-            if (DG)     // Chemin en allant de gauche à droite --->
+            if (direction)     // Chemin en allant de gauche à droite --->
             {
                 if (pos + 1 > (NB_COLONNE - 2))     // Si on arrive hors du jeu alors... (trop à droite)
                 {
@@ -1229,7 +1220,7 @@ void *fctThAmiral()
                     setTab(0, pos + 1, AMIRAL, pthread_self());
                 }
             }
-            else if (!DG) // Chemin en allant de droite à gauche <---
+            else if (!direction)    // Chemin en allant de droite à gauche <---
             {
                 if (pos - 1 < 8)        // Si on arrive hors du jeu alors... (trop à gauche)
                 {
@@ -1263,10 +1254,10 @@ void *fctThBouclier(int *num)
     numeroBouc--;
     printf("Thread Bouclier %d : %ld\n",numeroBouc, pthread_self());
 
-    sigset_t Masque;
-	sigfillset(&Masque);
-	sigdelset(&Masque, SIGPIPE);
-	sigprocmask(SIG_SETMASK, &Masque, NULL);
+    sigset_t mask;
+	sigfillset(&mask);
+	sigdelset(&mask, SIGPIPE);
+	sigprocmask(SIG_SETMASK, &mask, NULL);
 
     // Allocation dynamique + passage de l'état du bouclier en variable spécifique
 
@@ -1441,17 +1432,14 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
     return rdm;
 }
 
-void DecrementNbVies(void *p)
+void DecrementNbVies(void *p)       // Décrémente le nombre de vie
 {
-    printf("Fonction de decrementation !\n");
-
     // Paradigme de réveil
 
     pthread_mutex_lock(&mutexVies);
     nbVies--;
     pthread_mutex_unlock(&mutexVies);
     pthread_cond_signal(&condVies);
-    printf("Salut à tous les gens\n");
 }
 
 void Destructeur(void *p)
