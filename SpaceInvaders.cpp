@@ -100,7 +100,7 @@ pthread_t thFlotteAliens;
 pthread_t thScore;
 pthread_t thBombe;
 pthread_t thAmiral;
-pthread_t thBouclier;
+pthread_t thBouclier[6];
 
 // Variable Mutex
 
@@ -271,12 +271,14 @@ int main(int argc, char *argv[])
     pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &num_bouclier);
     Attente(10); */
 
-    for (int i = -1; i < 7; i++)
+    int p = 0;
+    for (int i = 0; i < 8; i++)
     {
         pthread_mutex_lock(&mutexBouclier);
-        pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &i);
+        pthread_create(&thBouclier[p], NULL, (void *(*)(void *))fctThBouclier, &i);
         if (i == 2)
             i += 3;
+        p++;
     }
 
     // Creation des threads
@@ -318,20 +320,18 @@ int main(int argc, char *argv[])
             }
             pthread_create(&thVaisseau, NULL, (void *(*)(void *))fctThVaisseau, NULL);
         }
-        else
-        {
-            DessineGameOver(6,11);
-            pthread_cancel(thFlotteAliens);
-            pthread_cancel(thInvader);
-            pthread_cancel(thBombe);
-            pthread_cancel(thMissile);
-            pthread_cancel(thAmiral);
-        }
+        
     }
     pthread_mutex_unlock(&mutexVies);
 
+    DessineGameOver(6,11);
+    pthread_cancel(thFlotteAliens);
+    pthread_cancel(thInvader);
+    pthread_cancel(thAmiral);
+
     pthread_join(thEvent, NULL);
-    return 0;
+
+    exit(0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -400,7 +400,10 @@ void *fctThEvent()
         }
     }
 
-    FermetureFenetreGraphique();
+    pthread_mutex_lock(&mutexVies);
+    nbVies = 0;
+    pthread_mutex_unlock(&mutexVies);
+    pthread_cond_signal(&condVies);
 
     pthread_exit(NULL);
 }
@@ -612,12 +615,14 @@ void *fctThInvader()
 
         // Ré-initialisation des boucliers à la base 
         
+        int p = 0;
         for (int i=0;i<8;i++)
         {
             pthread_mutex_lock(&mutexBouclier);
-            pthread_create(&thBouclier, NULL, (void *(*)(void *))fctThBouclier, &i);
+            pthread_create(&thBouclier[p], NULL, (void *(*)(void *))fctThBouclier, &i);
             if (i==2)
                 i+=3;
+            p++;
         }
 
         /* setTab(NB_LIGNE - 2, 11, BOUCLIER1, 0);
@@ -1487,6 +1492,6 @@ void DecrementNbVies(void *p)
 
 void Destructeur(void *p)
 {
-    //printf("---- (Destructeur) Libération zone spécifique ----\n");
+    printf("---- (Destructeur) Libération zone spécifique ----\n");
     free(p);
 }
