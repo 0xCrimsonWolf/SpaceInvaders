@@ -125,19 +125,12 @@ pthread_key_t cle_pos;
 
 int colonne;
 bool fireOn=true;
-
 int nbAliens = 24;
-int lh = 2;         // Ligne d'alien la plus haute
-int cg = 8;         // Colonne d'alien la plus à gauche
-int lb = 8;         // Ligne d'alien la plus basse
-int cd = 18;        // Colonne d'alien la plus à droite
-long tidFlotteAliens;
 int score=0;
 bool MAJScore=false, OK=true;
 int nbVies=3;
 int niveau=0;
-
-int delai = 1000;
+int delai = 125; // 1000 au départ
 
 // Fonctions ajoutées
 
@@ -149,17 +142,17 @@ void Destructeur(void *p);
 
 int main(int argc, char *argv[])
 {
+    printf("---- (MAIN %d) Thread Principal lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
-
-    printf("Thread Principal lancé\n");
 
     srand((unsigned)time(NULL));
 
     // Ouverture de la fenetre graphique
 
-    printf("(MAIN %d) Ouverture de la fenetre graphique\n", pthread_self());
+    printf("---- (MAIN %d) Ouverture de la fenetre graphique ----\n", pthread_self());
+    
     fflush(stdout);
     if (OuvertureFenetreGraphique() < 0)
     {
@@ -279,6 +272,7 @@ int main(int argc, char *argv[])
     pthread_mutex_lock(&mutexVies);
     while(nbVies>0)
     {
+        printf("DEBUG COND\n");
         pthread_cond_wait(&condVies, &mutexVies);
         if (nbVies>0)
         {
@@ -296,10 +290,16 @@ int main(int argc, char *argv[])
     }
     pthread_mutex_unlock(&mutexVies);
 
+    printf("DEBUG 1\n");
     DessineGameOver(6,11);
     pthread_cancel(thFlotteAliens);
+    printf("DEBUG 2\n");
     pthread_cancel(thInvader);
+    printf("DEBUG 3\n");
     pthread_cancel(thAmiral);
+    printf("DEBUG 4\n");
+
+    printf("---- Niveau = %d ----\n---- Score = %d\n", niveau, score);
 
     pthread_join(thEvent, NULL);
 
@@ -312,6 +312,7 @@ int main(int argc, char *argv[])
 
 void *fctThVaisseau()
 {
+    printf("---- (Vaisseau %d) Thread lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
     sigdelset(&mask, SIGQUIT);
@@ -346,6 +347,7 @@ void *fctThVaisseau()
 
 void *fctThEvent()
 {
+    printf("---- (Event %d) Thread lancé ----\n", pthread_self());
     EVENT_GRILLE_SDL event;
 
     bool ok = false;
@@ -372,11 +374,14 @@ void *fctThEvent()
     }
 
     // On remets le nombre de vie a 0 pour quitter la condition du main sur nbVies
-
-    pthread_mutex_lock(&mutexVies);
-    nbVies = 0;
-    pthread_mutex_unlock(&mutexVies);
-    pthread_cond_signal(&condVies);
+    printf("EVENT\n");
+    if(nbVies != 0)
+    {
+        pthread_mutex_lock(&mutexVies);
+        nbVies = 0;
+        pthread_mutex_unlock(&mutexVies);
+        pthread_cond_signal(&condVies);
+    }
 
     FermetureFenetreGraphique();
 
@@ -393,7 +398,7 @@ void *fctThMissile(S_POSITION *pos)
     pthread_mutex_lock(&mutexGrille);
     if (tab[pos->L][pos->C].type != BOUCLIER1 && tab[pos->L][pos->C].type != BOUCLIER2 && tab[pos->L][pos->C].type != BOMBE)       // Si la case d'init. du missile est vide alors on créé le missile
     {
-        setTab(pos->L, pos->C, MISSILE, pthread_self());      // Init le missile
+        setTab(pos->L, pos->C, MISSILE, pthread_self());      // Initialise le missile
         DessineMissile(pos->L, pos->C);
         pthread_mutex_unlock(&mutexGrille);
 
@@ -421,14 +426,11 @@ void *fctThMissile(S_POSITION *pos)
                 score++;
                 pthread_mutex_unlock(&mutexScore);
                 pthread_cond_signal(&condScore);
-
-                printf("NBALIENS: %d\n", nbAliens);
                 
                 pthread_exit(NULL);
             }
             else if (tab[pos->L-1][pos->C].type == BOMBE)       // Si le missile rencontre une bombe
             {
-                printf("Missile rencontre une bombe !\n");
                 EffaceCarre(pos->L-1, pos->C);      // Efface la bombe
                 pthread_kill(tab[pos->L-1][pos->C].tid, SIGINT);
                 setTab(pos->L-1,pos->C, VIDE, 0);
@@ -441,6 +443,8 @@ void *fctThMissile(S_POSITION *pos)
             }
             else if (tab[pos->L-1][pos->C].type == AMIRAL)
             {
+                printf("---- (MISSILE %d) Thread Amiral touché ----\n", pthread_self());
+                
                 // Incrémentation du score de 10 (paradigme)
 
                 pthread_mutex_lock(&mutexScore);
@@ -449,8 +453,6 @@ void *fctThMissile(S_POSITION *pos)
                 pthread_cond_signal(&condScore);
 
                 // Envoi du signal SIGCHLD au VaisseauAmiral
-
-                printf("Envoi du SIGCHLD à %ld\n", tab[pos->L-1][pos->C].tid);
                 pthread_kill(tab[pos->L-1][pos->C].tid, SIGCHLD);
 
                 EffaceCarre(pos->L, pos->C);        // Efface le missile
@@ -468,7 +470,7 @@ void *fctThMissile(S_POSITION *pos)
             DessineMissile(pos->L, pos->C);
             
             pthread_mutex_unlock(&mutexGrille);
-            Attente(80);        // Attente de 80ms
+            Attente(80);
         }
         
         pthread_mutex_lock(&mutexGrille);
@@ -481,11 +483,8 @@ void *fctThMissile(S_POSITION *pos)
     }
     else
     {
-        printf("ELSE\n");
         if(tab[pos->L][pos->C].type == BOUCLIER1 || tab[pos->L][pos->C].type == BOUCLIER2)
         {
-            printf("BOUCLIER 1 ou 2\n");
-
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
@@ -512,7 +511,7 @@ void *fctThTimeOut()
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
 
-    Attente(300);   // Vraie valeur de base : 600
+    Attente(600);       // Vraie valeur de base : 600
     fireOn=true;
     pthread_exit(NULL);
     return 0;
@@ -520,6 +519,7 @@ void *fctThTimeOut()
 
 void *fctThInvader()
 {
+    printf("---- (Invader %d) Thread lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
@@ -532,29 +532,24 @@ void *fctThInvader()
 
         if(*ret == 0)       // Si les aliens sont tous morts (aliens LOOSE)
         {
-            delai=delai*0.7;                    // Augmente la vitesse (retrait de 30% sur le délai)
-            printf("delai : %d\n", delai);
+            delai=delai*0.7;            // Augmente la vitesse (retrait de 30% sur le délai)
 
             // Calcul avec modulo pour afficher chiffre par chiffre le niveau
 
             niveau++;
             int cur_niveau=niveau;
             int i=4;
-            printf("CurNiv = %d\n", cur_niveau);
+
             while(cur_niveau!=0 || i>2)
             {
                 int mod_niveau=cur_niveau%10;
                 cur_niveau=(cur_niveau-mod_niveau)/10;
                 DessineChiffre(13, i, mod_niveau);
-                printf("Dessin en 10,4 de %d\n", mod_niveau);
                 i--;
             }
         }
         else        // Si les aliens ont touché les boucliers (aliens WIN)
         {
-            printf("Alien win\n");
-            printf("delai : %d\n", delai);
-
             // On supprime les aliens restants
 
             pthread_mutex_lock(&mutexGrille);
@@ -598,11 +593,10 @@ void *fctThInvader()
 
 void *fctThFlotteAliens()
 {
+    printf("---- (Flotte Aliens %d) Thread lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
-
-    tidFlotteAliens=pthread_self();
 
     // Initalisation des aliens
 
@@ -620,8 +614,6 @@ void *fctThFlotteAliens()
     }
 
     Attente(delai);
-
-    // ------------------ JEUNE BOUCLE MITEUSE ------------------------
 
     int y=0, c=8,l=0, p=0, rdm=-1, cur_aliens, compt=1;
 
@@ -659,8 +651,6 @@ void *fctThFlotteAliens()
                         
                         if (tab[l][c+1].type == MISSILE)
                         {
-                            printf("GD -> Missile\n");
-                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);      // On tue l'alien
                             
@@ -673,8 +663,6 @@ void *fctThFlotteAliens()
                             if ((nbAliens%6)==0 && nbAliens!=0)
                                 pthread_cond_signal(&condFlotteAliens);
                             pthread_mutex_unlock(&mutexAliens);
-                            
-                            printf("NBALIENS: %d\n", nbAliens);
 
                             // Incrémentation du score + signal
 
@@ -685,16 +673,11 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
-                            //printf("GD -> Else\n");
-                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
 
-                            //Attente(500);
-
                             if (tab[l][c+1].type == BOMBE)
                             {
-                                //printf("GD -> Bombe\n");
                                 EffaceCarre(l,c+1);
                                 pthread_kill(tab[l][c+1].tid, SIGINT);
                                 setTab(l,c+1, VIDE, 0);
@@ -712,15 +695,10 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexGrille);
                     }
                     if (nbAliens==0)
-                    {
-                        printf("Tous les aliens sont morts !\n");
                         pthread_exit(&nbAliens);
-                    }  
                     c+=2;
                 }
-                //printf("Ligne entiere\n");
             }
-            //printf("Cycle Complet ->\n");
             Attente(delai);
             x++;
             compt++;
@@ -730,7 +708,7 @@ void *fctThFlotteAliens()
         while (x<4)     // Aller retour droite ---> gauche
         {
             // Un déplacement sur deux un alien random lache une bombe 
-
+            
             rdm=RandomNumberPairImpair(IMPAIR, compt, &cur_aliens);
 
             l=0+p;
@@ -761,8 +739,6 @@ void *fctThFlotteAliens()
 
                         if (tab[l][c-1].type == MISSILE)
                         {
-                            printf("DG -> Missile\n");
-                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);      // On tue l'alien
 
@@ -775,7 +751,6 @@ void *fctThFlotteAliens()
                             if ((nbAliens%6)==0 && nbAliens!=0)
                                 pthread_cond_signal(&condFlotteAliens);
                             pthread_mutex_unlock(&mutexAliens);
-                            printf("NBALIENS: %d\n", nbAliens);
 
                             // Incrémentation du score + signal
 
@@ -786,8 +761,6 @@ void *fctThFlotteAliens()
                         }
                         else
                         {
-                            //printf("DG -> ELSE\n");
-                            
                             EffaceCarre(l,c);
                             setTab(l, c, VIDE, 0);
 
@@ -795,7 +768,6 @@ void *fctThFlotteAliens()
 
                             if (tab[l][c-1].type == BOMBE)
                             {
-                                //printf("DG -> Bombe\n");
                                 EffaceCarre(l,c-1);
                                 pthread_kill(tab[l][c-1].tid, SIGINT);
                                 setTab(l,c-1, VIDE, 0);
@@ -814,28 +786,21 @@ void *fctThFlotteAliens()
                         pthread_mutex_unlock(&mutexGrille);
                     }
                     if (nbAliens == 0)
-                    {
-                        printf("Tous les aliens sont morts !\n");
                         pthread_exit(&nbAliens);
-                    }
                     c-=2;
                 }
-                //printf("Ligne entiere\n");
             }
-            //printf("Cycle Complet <-\n");
             Attente(delai);
             x++;
             compt++;
         }
-
-        //printf("droite->gauche fini\n");
 
         l=0+p;
         c=8;
 
         rdm=RandomNumberPairImpair(IMPAIR, compt, &cur_aliens);
 
-        for (int i=0;i<6;i++)       // Descente aux enfers
+        for (int i=0;i<6;i++)       // Descente
         {
             l+=2;
             c=8;
@@ -846,7 +811,6 @@ void *fctThFlotteAliens()
                     if (cur_aliens==rdm)
                     {
                         // Lancement du threadBombe
-
                         S_POSITION* posBombe = (S_POSITION*) malloc(sizeof(S_POSITION));
                         posBombe->L=l+2;
                         posBombe->C=c;
@@ -858,8 +822,6 @@ void *fctThFlotteAliens()
 
                     if (tab[l+1][c].type == MISSILE)
                     {
-                        printf("Desc -> MISSILE\n");
-                        
                         EffaceCarre(l,c);
                         setTab(l, c, VIDE, 0); // On tue l'alien
 
@@ -874,7 +836,6 @@ void *fctThFlotteAliens()
                         if ((nbAliens%6)==0 && nbAliens!=0)
                             pthread_cond_signal(&condFlotteAliens);
                         pthread_mutex_unlock(&mutexAliens);
-                        printf("NBALIENS: %d\n", nbAliens);
 
                         // Incrémentation du score + signal
 
@@ -885,14 +846,11 @@ void *fctThFlotteAliens()
                     }
                     else
                     {
-                        //printf("Desc -> ELSE\n");
-        
                         EffaceCarre(l,c);
                         setTab(l, c, VIDE, 0);
 
                         if (tab[l+1][c].type == BOMBE)
                         {
-                            //printf("Desc -> Bombe\n");
                             EffaceCarre(l+1,c);
                             pthread_kill(tab[l+1][c].tid, SIGINT);
                             setTab(l+1,c, VIDE, 0);
@@ -911,22 +869,16 @@ void *fctThFlotteAliens()
                     pthread_mutex_unlock(&mutexGrille);
                 }
                 if (nbAliens == 0)
-                {
-                    printf("Tous les aliens sont morts !\n");
                     pthread_exit(&nbAliens);
-                }
                 c+=2;
             }
         }
         compt++;
         
         Attente(delai);
-        printf("Descente\n");
         y++;
         p++;
     }
-
-    printf("Les aliens ont gagné...\n");
 
     for (int i=8;i<22;i++)
     {
@@ -954,7 +906,6 @@ void *fctThScore()
         while (!MAJScore)
         {
             pthread_cond_wait(&condScore, &mutexScore);
-            printf("Le score est de : %d\n", score);
 
             // Calcul avec modulo pour afficher chiffre par chiffre
 
@@ -999,8 +950,6 @@ void *fctThBombe(S_POSITION * pos)
                 case BOUCLIER2:
                 case BOUCLIER1:
 
-                    printf("CASE BOUCLIER1 ou BOUCLIER2\n");
-                    
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
                     EffaceCarre(pos->L, pos->C);
@@ -1010,8 +959,7 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case BOMBE:
-                    
-                    printf("CASE BOMBE\n");
+
                     EffaceCarre(pos->L+1, pos->C);
                     setTab(pos->L+1, pos->C, VIDE, 0);
 
@@ -1020,7 +968,6 @@ void *fctThBombe(S_POSITION * pos)
                     break;
                 case MISSILE:
                     
-                    printf("CASE MISSILE\n");
                     EffaceCarre(pos->L+1, pos->C);      // Efface le missile
 
                     EffaceCarre(pos->L, pos->C);
@@ -1033,9 +980,6 @@ void *fctThBombe(S_POSITION * pos)
                     pthread_exit(NULL);
                     break;
                 case VAISSEAU:
-                    
-                    printf("CASE VAISSEAU\n");
-                    
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGQUIT);
 
                     EffaceCarre(pos->L, pos->C);
@@ -1075,7 +1019,6 @@ void *fctThBombe(S_POSITION * pos)
     {
         if (tab[pos->L][pos->C].type == BOUCLIER2 || tab[pos->L][pos->C].type == BOUCLIER1)
         {
-            printf("BOUCLIER 2\n");
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
@@ -1083,13 +1026,11 @@ void *fctThBombe(S_POSITION * pos)
         }
         else if (tab[pos->L][pos->C].type == BOMBE)
         {
-            printf("BOMBE\n");
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
         }
         else if (tab[pos->L][pos->C].type == MISSILE)
         {
-            printf("MISSILE\n");
             EffaceCarre(pos->L, pos->C);        // Si la case d'init. de la bombe est un missile alors on le supprime
 
             pthread_kill(tab[pos->L][pos->C].tid, SIGINT);
@@ -1100,7 +1041,6 @@ void *fctThBombe(S_POSITION * pos)
         }
         else if (tab[pos->L][pos->C].type == ALIEN)
         {
-            printf("ALIEN\n");
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
         }
@@ -1118,6 +1058,8 @@ void *fctThAmiral()
     sigdelset(&mask, SIGALRM);
     sigdelset(&mask, SIGCHLD);
     sigprocmask(SIG_SETMASK, &mask, NULL);
+
+    printf("---- (AMIRAL %d) Thread lancé ----\n", pthread_self());
 
     bool direction;            // 0 = Gauche 1 = Droite
     int pos, temps;
@@ -1137,6 +1079,8 @@ void *fctThAmiral()
         pthread_mutex_lock(&mutexAliens);
         pthread_cond_wait(&condFlotteAliens, &mutexAliens);
         pthread_mutex_unlock(&mutexAliens);
+
+        printf("---- (AMIRAL) Amiral apparaît ----\n");
 
         OK = true;
         direction = (rand() % (2 + 1));
@@ -1179,11 +1123,7 @@ void *fctThAmiral()
                     setTab(0, pos, AMIRAL, pthread_self());
                     setTab(0, pos + 1, AMIRAL, pthread_self());
                 }
-                else if (tab[0][pos+2].type == MISSILE)
-                {
-                    printf("Amiral rencontre un missile");
-                    // On ne fait rien
-                }
+                else if (tab[0][pos+2].type == MISSILE){}
                 else
                 {
                     pos++;
@@ -1202,11 +1142,7 @@ void *fctThAmiral()
                     setTab(0, pos, AMIRAL, pthread_self());
                     setTab(0, pos + 1, AMIRAL, pthread_self());
                 }
-                else if (tab[0][pos-2].type == MISSILE)
-                {
-                    printf("Amiral rencontre un missile");
-                    // On ne fait rien
-                }
+                else if (tab[0][pos-2].type == MISSILE){} // On ne fait rien
                 else 
                 {
                     pos--;
@@ -1224,7 +1160,6 @@ void *fctThBouclier(int *num)
 {
     int numeroBouc = (*num);
     numeroBouc--;
-    printf("Thread Bouclier %d : %ld\n",numeroBouc, pthread_self());
 
     sigset_t mask;
 	sigfillset(&mask);
@@ -1319,7 +1254,7 @@ void HandlerSIGHUP(int sig)        // Mouvement pour le tir de missile
 
 void HandlerSIGINT(int sig)
 {
-    printf("SIGINT\n");
+    printf("---- (Handler) Réception SIGINT ----\n");
     pthread_exit(NULL);
 
     return;
@@ -1327,7 +1262,7 @@ void HandlerSIGINT(int sig)
 
 void HandlerSIGQUIT(int sig)
 {
-    printf("SIGQUIT\n");
+    printf("---- (Handler) Réception SIGQUIT ----\n");
 
     // Efface le vaisseau
 
@@ -1342,7 +1277,7 @@ void HandlerSIGQUIT(int sig)
 
 void HandlerSIGALRM(int sig)
 {
-    printf("SIGALRM\n");
+    printf("---- (Handler) Réception SIGALRM ----\n");
 
     OK=false;
     alarm(0);
@@ -1352,7 +1287,7 @@ void HandlerSIGALRM(int sig)
 
 void HandlerSIGCHLD(int sig)
 {
-    printf("SIGCHLD\n");
+    printf("---- (Handler) Réception SIGCHLD ----\n");
 
     OK=false;
     alarm(0);
@@ -1362,16 +1297,13 @@ void HandlerSIGCHLD(int sig)
 
 void HandlerSIGPIPE(int sig)
 {
-    printf("SIGPIPE\n");
+    printf("---- (Handler) Réception SIGPIPE ----\n");
 
     int *num = (int*) pthread_getspecific(cle_pos);
     int *etat = (int*) pthread_getspecific(cle_etat);
-
-    printf("Position du bouclier touché : %d\nEtat du bouclier touché : %d\n", *num, *etat);
     
     if (*etat==1)
     {
-        printf("Tire sur un intact\n");
         setTab(NB_LIGNE - 2, 11+(*num), BOUCLIER2, pthread_self());
         DessineBouclier(NB_LIGNE - 2, 11+(*num), BOUCLIER2);
         *etat=2;
@@ -1379,12 +1311,10 @@ void HandlerSIGPIPE(int sig)
     }
     else if (*etat==2)
     {
-        printf("Passage abimé\n");
         setTab(NB_LIGNE - 2, 11+(*num), VIDE, 0);
         EffaceCarre(NB_LIGNE - 2, 11+(*num));
     }
     
-
     return;
 }
 
@@ -1406,6 +1336,7 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
 
 void DecrementNbVies(void *p)       // Décrémente le nombre de vie
 {
+    printf("---- Décrémentation d'une vie (nbVies = %d) ----\n", nbVies);
     // Paradigme de réveil
 
     pthread_mutex_lock(&mutexVies);
@@ -1416,6 +1347,5 @@ void DecrementNbVies(void *p)       // Décrémente le nombre de vie
 
 void Destructeur(void *p)
 {
-    printf("---- (Destructeur) Libération zone spécifique ----\n");
     free(p);
 }
