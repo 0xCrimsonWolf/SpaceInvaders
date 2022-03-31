@@ -482,23 +482,14 @@ void *fctThMissile(S_POSITION *pos)
     else
     {
         printf("ELSE\n");
-        if(tab[pos->L][pos->C].type == BOUCLIER1)           // Doublon avec celui du bas pourrait-on en faire un seul ?
+        if(tab[pos->L][pos->C].type == BOUCLIER1 || tab[pos->L][pos->C].type == BOUCLIER2)
         {
-            printf("BOUCLIER 1\n");
+            printf("BOUCLIER 1 ou 2\n");
 
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL);
-        }
-        else if (tab[pos->L][pos->C].type == BOUCLIER2)     // Doublon cf.
-        {
-            printf("BOUCLIER 1\n");
-
-            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
-
-            pthread_mutex_unlock(&mutexGrille);
-            pthread_exit(NULL); 
         }
         else if(tab[pos->L][pos->C].type == BOMBE)
         {
@@ -937,14 +928,14 @@ void *fctThFlotteAliens()
 
     printf("Les aliens ont gagné...\n");
 
-        for (int i=8;i<22;i++)
+    for (int i=8;i<22;i++)
+    {
+        if (tab[17][i].type == VAISSEAU)
         {
-            if (tab[17][i].type == VAISSEAU)
-            {
-                pthread_kill(tab[17][i].tid, SIGQUIT);
-                pthread_exit(&nbAliens);
-            }
+            pthread_kill(tab[17][i].tid, SIGQUIT);
+            pthread_exit(&nbAliens);
         }
+    }
 
     return 0;
 }
@@ -1006,20 +997,9 @@ void *fctThBombe(S_POSITION * pos)
             switch(tab[pos->L+1][pos->C].type)      // Prochaine position de la bombe
             {
                 case BOUCLIER2:
-                    
-                    printf("CASE BOUCLIER2\n");         // Doublon à fusionner ?
-                    
-                    pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
-
-                    EffaceCarre(pos->L, pos->C);
-                    setTab(pos->L,pos->C, VIDE, 0);     // Efface la bombe
-
-                    pthread_mutex_unlock(&mutexGrille);
-                    pthread_exit(NULL); 
-                    break;
                 case BOUCLIER1:
-                    
-                    printf("CASE BOUCLIER1\n");     // Cf. doublon
+
+                    printf("CASE BOUCLIER1 ou BOUCLIER2\n");
                     
                     pthread_kill(tab[pos->L+1][pos->C].tid, SIGPIPE);
 
@@ -1093,21 +1073,13 @@ void *fctThBombe(S_POSITION * pos)
     }
     else
     {
-        if (tab[pos->L][pos->C].type == BOUCLIER2)
+        if (tab[pos->L][pos->C].type == BOUCLIER2 || tab[pos->L][pos->C].type == BOUCLIER1)
         {
             printf("BOUCLIER 2\n");
             pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
 
             pthread_mutex_unlock(&mutexGrille);
             pthread_exit(NULL); 
-        }
-        else if (tab[pos->L][pos->C].type == BOUCLIER1)
-        {
-            printf("BOUCLIER 1\n");
-            pthread_kill(tab[pos->L][pos->C].tid, SIGPIPE);
-
-            pthread_mutex_unlock(&mutexGrille);
-            pthread_exit(NULL);
         }
         else if (tab[pos->L][pos->C].type == BOMBE)
         {
