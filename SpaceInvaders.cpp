@@ -70,6 +70,7 @@ void HandlerSIGQUIT(int sig);
 void HandlerSIGALRM(int sig);
 void HandlerSIGCHLD(int sig);
 void HandlerSIGPIPE(int sig);
+void HandlerSIGPROF(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void Attente(int milli)
@@ -130,7 +131,8 @@ int score=0;
 bool MAJScore=false, OK=true;
 int nbVies=3;
 int niveau=0;
-int delai = 125; // 1000 au départ
+int delai = 1000; // 1000 au départ
+long tid_flotte;
 
 // Fonctions ajoutées
 
@@ -288,29 +290,18 @@ int main(int argc, char *argv[])
         pthread_mutex_unlock(&mutexVies);
     }
     DessineGameOver(6,11);
-    
-    //pthread_cancel(thFlotteAliens);     // Gros problème avec le cancel de la flotte... + problème dans l'ordre des cancels .....
-    pthread_cancel(thAmiral);
-    pthread_cancel(thBombe);
-    pthread_cancel(thInvader);
-    pthread_cancel(thFlotteAliens);
-    pthread_cancel(thInvader);
 
-    /* printf("DEBUG 1\n");
-    pthread_cancel(thBombe);
-    printf("DEBUG 2\n");
-    pthread_cancel(thFlotteAliens);
-    printf("DEBUG 3\n");
     pthread_cancel(thInvader);
-    printf("DEBUG 4\n");
+    pthread_cancel(thBombe);
     pthread_cancel(thAmiral);
-    printf("DEBUG 5\n"); */
+    pthread_cancel(thFlotteAliens);
 
     printf("---- Niveau = %d ----\n---- Score = %d ----\n", niveau, score);
 
     pthread_join(thEvent, NULL);
-    printf("EVENT444\n");
+
     exit(0);
+    return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -381,20 +372,17 @@ void *fctThEvent()
 
     // On remets le nombre de vie a 0 pour quitter la condition du main sur nbVies
 
-    printf("EVENT\n");
     if(nbVies != 0)
     {
-        printf("EVENT111\n");
         pthread_mutex_lock(&mutexVies);
         nbVies = 0;
         pthread_mutex_unlock(&mutexVies);
         pthread_cond_signal(&condVies);
-        printf("EVENT222\n");
     }
-    printf("EVENT333\n");
+    
     FermetureFenetreGraphique();
-    printf("EVENT333bis\n");
     pthread_exit(NULL);
+    return 0;
 }
 
 void *fctThMissile(S_POSITION *pos)
@@ -605,7 +593,13 @@ void *fctThFlotteAliens()
     printf("---- (Flotte Aliens %d) Thread lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
+    sigdelset(&mask, SIGPROF);
     sigprocmask(SIG_SETMASK, &mask, NULL);
+
+    tid_flotte = pthread_self();
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
     // Initalisation des aliens
 
