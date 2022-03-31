@@ -269,10 +269,9 @@ int main(int argc, char *argv[])
 
     // Gestion des vies
 
-    pthread_mutex_lock(&mutexVies);
     while(nbVies>0)
     {
-        printf("DEBUG COND\n");
+        pthread_mutex_lock(&mutexVies);
         pthread_cond_wait(&condVies, &mutexVies);
         if (nbVies>0)
         {
@@ -286,23 +285,31 @@ int main(int argc, char *argv[])
             }
             pthread_create(&thVaisseau, NULL, (void *(*)(void *))fctThVaisseau, NULL);
         }
-        
+        pthread_mutex_unlock(&mutexVies);
     }
-    pthread_mutex_unlock(&mutexVies);
-
-    printf("DEBUG 1\n");
     DessineGameOver(6,11);
-    pthread_cancel(thFlotteAliens);
-    printf("DEBUG 2\n");
-    pthread_cancel(thInvader);
-    printf("DEBUG 3\n");
+    
+    //pthread_cancel(thFlotteAliens);     // Gros problème avec le cancel de la flotte... + problème dans l'ordre des cancels .....
     pthread_cancel(thAmiral);
-    printf("DEBUG 4\n");
+    pthread_cancel(thBombe);
+    pthread_cancel(thInvader);
+    pthread_cancel(thFlotteAliens);
+    pthread_cancel(thInvader);
 
-    printf("---- Niveau = %d ----\n---- Score = %d\n", niveau, score);
+    /* printf("DEBUG 1\n");
+    pthread_cancel(thBombe);
+    printf("DEBUG 2\n");
+    pthread_cancel(thFlotteAliens);
+    printf("DEBUG 3\n");
+    pthread_cancel(thInvader);
+    printf("DEBUG 4\n");
+    pthread_cancel(thAmiral);
+    printf("DEBUG 5\n"); */
+
+    printf("---- Niveau = %d ----\n---- Score = %d ----\n", niveau, score);
 
     pthread_join(thEvent, NULL);
-
+    printf("EVENT444\n");
     exit(0);
 }
 
@@ -341,7 +348,6 @@ void *fctThVaisseau()
     pthread_cleanup_pop(1);
 
     pthread_exit(NULL);
-
     return 0;
 }
 
@@ -374,17 +380,20 @@ void *fctThEvent()
     }
 
     // On remets le nombre de vie a 0 pour quitter la condition du main sur nbVies
+
     printf("EVENT\n");
     if(nbVies != 0)
     {
+        printf("EVENT111\n");
         pthread_mutex_lock(&mutexVies);
         nbVies = 0;
         pthread_mutex_unlock(&mutexVies);
         pthread_cond_signal(&condVies);
+        printf("EVENT222\n");
     }
-
+    printf("EVENT333\n");
     FermetureFenetreGraphique();
-
+    printf("EVENT333bis\n");
     pthread_exit(NULL);
 }
 
@@ -889,6 +898,7 @@ void *fctThFlotteAliens()
         }
     }
 
+    pthread_exit(NULL);
     return 0;
 }
 
@@ -1154,6 +1164,7 @@ void *fctThAmiral()
             pthread_mutex_unlock(&mutexGrille);
         }
     }
+    return 0;
 }
 
 void *fctThBouclier(int *num)
@@ -1336,13 +1347,13 @@ int RandomNumberPairImpair(bool PP, int compteur, int* current_alien)
 
 void DecrementNbVies(void *p)       // Décrémente le nombre de vie
 {
-    printf("---- Décrémentation d'une vie (nbVies = %d) ----\n", nbVies);
     // Paradigme de réveil
 
     pthread_mutex_lock(&mutexVies);
     nbVies--;
     pthread_mutex_unlock(&mutexVies);
     pthread_cond_signal(&condVies);
+    printf("---- Décrémentation d'une vie (nbVies = %d) ----\n", nbVies);
 }
 
 void Destructeur(void *p)
