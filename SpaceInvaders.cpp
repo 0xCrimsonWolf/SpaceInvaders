@@ -144,7 +144,7 @@ void Destructeur(void *p);
 
 int main(int argc, char *argv[])
 {
-    printf("---- (MAIN %d) Thread Principal lancé ----\n", pthread_self());
+    printf("---- (MAIN) Thread Principal lancé ----\n", pthread_self());
     sigset_t mask;
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
 
     // Ouverture de la fenetre graphique
 
-    printf("---- (MAIN %d) Ouverture de la fenetre graphique ----\n", pthread_self());
+    printf("---- (MAIN) Ouverture de la fenetre graphique ----\n", pthread_self());
     
     fflush(stdout);
     if (OuvertureFenetreGraphique() < 0)
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
 
 void *fctThVaisseau()
 {
-    printf("---- (Vaisseau %d) Thread lancé ----\n", pthread_self());
+    printf("---- (VAISSEAU) Thread Vaisseau lancé ----\n");
     sigset_t mask;
     sigfillset(&mask);
     sigdelset(&mask, SIGQUIT);
@@ -344,7 +344,7 @@ void *fctThVaisseau()
 
 void *fctThEvent()
 {
-    printf("---- (Event %d) Thread lancé ----\n", pthread_self());
+    printf("---- (EVENT) Thread Event lancé ----\n");
     EVENT_GRILLE_SDL event;
 
     bool ok = false;
@@ -440,7 +440,7 @@ void *fctThMissile(S_POSITION *pos)
             }
             else if (tab[pos->L-1][pos->C].type == AMIRAL)
             {
-                printf("---- (MISSILE %d) Thread Amiral touché ----\n", pthread_self());
+                printf("---- (MISSILE) Thread Amiral touché ----\n");
                 
                 // Incrémentation du score de 10 (paradigme)
 
@@ -516,7 +516,7 @@ void *fctThTimeOut()
 
 void *fctThInvader()
 {
-    printf("---- (Invader %d) Thread lancé ----\n", pthread_self());
+    printf("---- (INVADER) Thread Invader lancé ----\n");
     sigset_t mask;
     sigfillset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
@@ -537,6 +537,9 @@ void *fctThInvader()
             int cur_niveau=niveau;
             int i=4;
 
+            printf("---- (INVADER) Niveau %d atteint ! ----\n", niveau);
+            printf("---- (INVADER) Délai augmenté ! (%d ms) ----\n", delai);
+
             while(cur_niveau!=0 || i>2)
             {
                 int mod_niveau=cur_niveau%10;
@@ -548,6 +551,8 @@ void *fctThInvader()
         else        // Si les aliens ont touché les boucliers (aliens WIN)
         {
             // On supprime les aliens restants
+
+            printf("---- (INVADER) Les aliens ont gagnés ----\n");
 
             pthread_mutex_lock(&mutexGrille);
             for(int i=0;i<NB_LIGNE;i++)
@@ -590,7 +595,7 @@ void *fctThInvader()
 
 void *fctThFlotteAliens()
 {
-    printf("---- (Flotte Aliens %d) Thread lancé ----\n", pthread_self());
+    printf("---- (FLOTTE_ALIENS) Thread Flottes Alients lancé ----\n");
     sigset_t mask;
     sigfillset(&mask);
     sigdelset(&mask, SIGPROF);
@@ -1063,7 +1068,7 @@ void *fctThAmiral()
     sigdelset(&mask, SIGCHLD);
     sigprocmask(SIG_SETMASK, &mask, NULL);
 
-    printf("---- (AMIRAL %d) Thread lancé ----\n", pthread_self());
+    printf("---- (AMIRAL) Thread Vaisseau Amiral lancé ----\n", pthread_self());
 
     bool direction;            // 0 = Gauche 1 = Droite
     int pos, temps;
@@ -1084,13 +1089,13 @@ void *fctThAmiral()
         pthread_cond_wait(&condFlotteAliens, &mutexAliens);
         pthread_mutex_unlock(&mutexAliens);
 
-        printf("---- (AMIRAL) Amiral apparaît ----\n");
-
         OK = true;
         direction = (rand() % (2 + 1));
         pos = rand() % ((NB_COLONNE - 2) - 8 + 1) + 8;
         temps = rand() % (12 - 4 + 1) + 4;
         alarm(temps);
+
+        printf("---- (AMIRAL) Le Vaisseau Amiral apparaît pour %d secondes ----\n", temps);
 
         // Initialisation de l'Amiral
 
@@ -1287,6 +1292,8 @@ void HandlerSIGALRM(int sig)
     OK=false;
     alarm(0);
 
+    printf("---- (AMIRAL) Le Vaisseau Amiral disparaît ----\n");
+
     return;
 }
 
@@ -1296,6 +1303,8 @@ void HandlerSIGCHLD(int sig)
 
     OK=false;
     alarm(0);
+
+    printf("---- (AMIRAL) Le Vaisseau Amiral disparaît ----\n");
     
     return;
 }
