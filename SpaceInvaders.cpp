@@ -131,7 +131,7 @@ int score=0;
 bool MAJScore=false, OK=true;
 int nbVies=3;
 int niveau=0;
-int delai = 1000; // 1000 au départ
+int delai = 1000;   // 1000 au départ
 long tid_flotte;
 
 // Fonctions ajoutées
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
     pthread_cancel(thAmiral);
     pthread_cancel(thFlotteAliens);
 
-    printf("---- Niveau = %d ----\n---- Score = %d ----\n", niveau, score);
+    printf("----- Niveau = %d -----\n----- Score = %d -----\n", niveau, score);
 
     pthread_join(thEvent, NULL);
 
